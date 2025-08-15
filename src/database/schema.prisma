@@ -1,0 +1,51 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "./generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Driver {
+  id        String   @id @default(uuid())
+  name      String
+  phone     String   @unique
+  location  String?
+  plate     String   // NO único (conductores comparten carros)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relación con carreras asignadas
+  assignedRequests TaxiRequest[]
+  
+  @@map("drivers")
+}
+
+model TaxiRequest {
+  id          String        @id @default(uuid())
+  clientName  String
+  clientPhone String
+  location    String
+  status      RequestStatus @default(PENDING)
+  assignedTo  String?       // ID del conductor asignado
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  
+  // Relación con conductor
+  driver      Driver?       @relation(fields: [assignedTo], references: [id])
+  
+  @@map("taxi_requests")
+}
+
+enum RequestStatus {
+  PENDING     // Esperando respuesta de conductores
+  ASSIGNED    // Asignado a un conductor
+  COMPLETED   // Carrera completada
+  CANCELLED   // Cancelada
+}

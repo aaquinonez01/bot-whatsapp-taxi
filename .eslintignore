@@ -1,0 +1,29 @@
+# Archivos generados por Prisma
+src/database/generated/
+**/generated/
+
+# Node modules
+node_modules/
+
+# Build files
+dist/
+build/
+
+# Logs
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+
+# Baileys session files
+bot_sessions/
+baileys_store.json
+
+# Temporary files
+*.tmp
+*.temp
