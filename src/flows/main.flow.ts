@@ -29,6 +29,14 @@ export const mainFlow = addKeyword<BaileysProvider, MemoryDB>([
     async (ctx, { gotoFlow, fallBack, state }) => {
       const option = ctx.body.trim();
 
+      // Verificar si el usuario ya está esperando una respuesta de conductor
+      const isWaiting = state.get("isWaitingForDriver");
+      
+      if (isWaiting) {
+        // Usuario está en espera, solo permitir comandos específicos
+        return fallBack("⏳ Estás esperando respuesta de los conductores. Puedes escribir 'cancelar' para cancelar tu solicitud.");
+      }
+
       // Validar opción seleccionada
       const validation = ValidationUtils.validateMenuOption(option);
 
@@ -67,8 +75,15 @@ export const quickTaxiFlow = addKeyword<BaileysProvider, MemoryDB>([
   "pido taxi",
   "solicitar taxi",
   "servicio taxi",
-  "1",
-]).addAction(async (_ctx, { gotoFlow }) => {
+]).addAction(async (ctx, { gotoFlow, state }) => {
+  // Verificar si el usuario ya está esperando una respuesta de conductor
+  const isWaiting = state.get("isWaitingForDriver");
+  
+  if (isWaiting) {
+    // Usuario está en espera, no procesar nueva solicitud
+    return;
+  }
+  
   return gotoFlow(taxiFlow);
 });
 
@@ -80,8 +95,15 @@ export const supportFlow = addKeyword<BaileysProvider, MemoryDB>(
     capture: true,
     delay: 500,
   },
-  async (ctx, { gotoFlow, fallBack, flowDynamic }) => {
+  async (ctx, { gotoFlow, fallBack, flowDynamic, state }) => {
     const option = ctx.body.trim();
+
+    // Verificar si el usuario ya está esperando una respuesta de conductor
+    const isWaiting = state.get("isWaitingForDriver");
+    
+    if (isWaiting) {
+      return fallBack("⏳ Estás esperando respuesta de los conductores. Puedes escribir 'cancelar' para cancelar tu solicitud.");
+    }
 
     const validation = ValidationUtils.validateSupportOption(option);
 
@@ -130,7 +152,15 @@ export const fallbackFlow = addKeyword<BaileysProvider, MemoryDB>([
 ]).addAnswer(
   MESSAGES.VALIDATION.INVALID_COMMAND,
   null,
-  async (ctx, { gotoFlow }) => {
+  async (ctx, { gotoFlow, state, flowDynamic }) => {
+    // Verificar si el usuario ya está esperando una respuesta de conductor
+    const isWaiting = state.get("isWaitingForDriver");
+    
+    if (isWaiting) {
+      await flowDynamic("⏳ Estás esperando respuesta de los conductores. Puedes escribir 'cancelar' para cancelar tu solicitud.");
+      return;
+    }
+    
     // Si el usuario escribe "menu", llevarlo al flujo principal
     if (ctx.body.toLowerCase().includes("menu")) {
       return gotoFlow(mainFlow);

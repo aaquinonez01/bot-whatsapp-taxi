@@ -23,6 +23,8 @@ import {
 
 import {
   taxiFlow,
+  taxiAssignedFlow,
+  postTimeoutFlow,
   cancelRequestFlow,
   statusFlow,
   completeRideFlow,
@@ -72,6 +74,9 @@ const main = async () => {
 
     // Crear flujo principal
     const adapterFlow = createFlow([
+      // Flujo especial post-timeout (debe ir ANTES que mainFlow)
+      postTimeoutFlow,
+      
       // Flujos principales
       mainFlow,
       quickTaxiFlow,
@@ -80,6 +85,7 @@ const main = async () => {
 
       // Flujos de taxi
       taxiFlow,
+      taxiAssignedFlow,
       cancelRequestFlow,
       statusFlow,
       completeRideFlow,

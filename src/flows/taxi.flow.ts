@@ -7,6 +7,42 @@ import { RequestService } from "../services/request.service.js";
 import { NotificationService } from "../services/notification.service.js";
 import { RequestStatus } from "~/types/index.js";
 
+// Flujo especial para limpiar estado cuando se asigna taxi
+export const taxiAssignedFlow = addKeyword<BaileysProvider, MemoryDB>([
+  "procesada exitosamente"
+]).addAction(async (ctx, { state }) => {
+  // Este flujo se activa cuando el cliente recibe el mensaje de asignación
+  // Limpiar completamente el estado del cliente
+  await state.clear();
+  console.log(`Estado limpiado para cliente ${ctx.from} después de asignación de taxi`);
+});
+
+// Flujo especial para manejar interacciones después de timeout
+export const postTimeoutFlow = addKeyword<BaileysProvider, MemoryDB>([
+  "1", "2", "3"
+]).addAction(async (ctx, { state, gotoFlow }) => {
+  const hadTimeout = state.get("hadTimeout");
+  
+  if (hadTimeout) {
+    // Limpiar el flag de timeout
+    await state.clear();
+    
+    const option = ctx.body.trim();
+    
+    // Procesar la opción seleccionada
+    if (option === "1") {
+      return gotoFlow(taxiFlow);
+    } else if (option === "2") {
+      const { supportFlow } = await import("./main.flow.js");
+      return gotoFlow(supportFlow);
+    } else if (option === "3") {
+      const { infoFlow } = await import("./main.flow.js");
+      return gotoFlow(infoFlow);
+    }
+  }
+  // Si no había timeout, no hacer nada (dejar que otros flujos manejen)
+});
+
 // Servicios globales (se inicializarán en app.ts)
 let requestService: RequestService;
 let notificationService: NotificationService;
@@ -82,8 +118,11 @@ export const taxiFlow = addKeyword<BaileysProvider, MemoryDB>(
 
         const request = requestResult.data!;
 
-        // Guardar ID de solicitud en estado
-        await state.update({ requestId: request.id });
+        // Guardar ID de solicitud en estado y marcar como esperando
+        await state.update({ 
+          requestId: request.id,
+          isWaitingForDriver: true 
+        });
 
         // Notificar a todos los conductores activos
         const notificationResult =
@@ -127,6 +166,10 @@ export const taxiFlow = addKeyword<BaileysProvider, MemoryDB>(
                 request.id,
                 "Timeout - ningún conductor aceptó en 20 segundos"
               );
+
+              // Marcar que hubo timeout y limpiar resto del estado
+              await state.clear();
+              await state.update({ hadTimeout: true });
 
               // Enviar mensaje de timeout y menú usando flowDynamic
               try {
@@ -203,9 +246,13 @@ export const cancelRequestFlow = addKeyword<BaileysProvider, MemoryDB>([
         );
 
         if (cancelResult.success) {
+          // Limpiar estado y marcar que se puede usar el menu
+          await state.clear();
+          await state.update({ hadTimeout: true });
+          
           await flowDynamic("✅ Tu solicitud de taxi ha sido cancelada.");
           await flowDynamic(
-            "💡 Escribe *menu* para hacer una nueva solicitud."
+            [MESSAGES.GREETING, MESSAGES.MENU].join("\n\n")
           );
         } else {
           await flowDynamic(

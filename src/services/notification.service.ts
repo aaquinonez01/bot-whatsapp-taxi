@@ -94,7 +94,7 @@ export class NotificationService {
         driver.name,
         driver.plate,
         driver.phone
-      )
+      ) + "\n\n✅ Tu solicitud ha sido procesada exitosamente."
 
       // Enviar presencia de "typing" antes del mensaje
       await this.provider.vendor.sendPresenceUpdate('composing', formattedPhone)
