@@ -6,22 +6,20 @@
   "type": "module",
   "scripts": {
     "start": "node ./dist/app.js",
-    "lint": "eslint . --no-ignore",
+    "lint": "eslint .",
     "dev": "npm run lint && nodemon ./src/app.ts",
     "build": "npx rollup -c",
-    "db:generate": "prisma generate --schema=./src/database/schema.prisma",
-    "db:push": "prisma db push --schema=./src/database/schema.prisma",
-    "db:migrate": "prisma migrate dev --schema=./src/database/schema.prisma",
-    "db:studio": "prisma studio --schema=./src/database/schema.prisma",
-    "db:reset": "prisma migrate reset --schema=./src/database/schema.prisma",
-    "db:seed": "tsx ./src/database/seed.ts",
-    "db:seed:full": "tsx ./src/database/seed-full.ts"
+    "db:seed": "tsx prisma/seed.ts"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   },
   "keywords": [],
   "dependencies": {
     "@builderbot/bot": "1.2.9",
     "@builderbot/provider-baileys": "1.2.9",
     "@prisma/client": "^6.13.0",
+    "dotenv": "^17.2.1",
     "uuid": "^11.1.0"
   },
   "devDependencies": {
