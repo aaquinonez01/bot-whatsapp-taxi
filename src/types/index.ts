@@ -1,4 +1,13 @@
 // Tipos base de la aplicación
+export interface LocationData {
+  type: 'whatsapp_location' | 'text_address'
+  latitude?: number
+  longitude?: number
+  name?: string
+  address?: string
+  formatted: string
+}
+
 export interface Driver {
   id: string
   name: string
@@ -15,6 +24,7 @@ export interface TaxiRequest {
   clientName: string
   clientPhone: string
   location: string
+  locationData?: LocationData
   status: RequestStatus
   assignedTo?: string
   createdAt: Date
@@ -63,6 +73,7 @@ export interface CreateTaxiRequestData {
   clientName: string
   clientPhone: string
   location: string
+  locationData?: LocationData
 }
 
 export interface AssignmentResult {

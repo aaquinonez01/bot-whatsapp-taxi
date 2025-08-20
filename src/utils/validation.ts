@@ -1,4 +1,4 @@
-import { ValidationResult } from "../types/index.js";
+import { ValidationResult, LocationData } from "../types/index.js";
 
 export class ValidationUtils {
   static validateName(name: string): ValidationResult {
@@ -43,6 +43,43 @@ export class ValidationUtils {
     }
 
     return { isValid: true };
+  }
+
+  static validateLocationData(locationData: LocationData): ValidationResult {
+    if (!locationData) {
+      return { isValid: false, error: "Los datos de ubicación no pueden estar vacíos" };
+    }
+
+    if (!locationData.formatted || locationData.formatted.trim().length === 0) {
+      return { isValid: false, error: "La ubicación formateada no puede estar vacía" };
+    }
+
+    if (locationData.type === 'whatsapp_location') {
+      if (typeof locationData.latitude !== 'number' || typeof locationData.longitude !== 'number') {
+        return { isValid: false, error: "Las coordenadas de ubicación deben ser números válidos" };
+      }
+
+      if (locationData.latitude < -90 || locationData.latitude > 90) {
+        return { isValid: false, error: "La latitud debe estar entre -90 y 90 grados" };
+      }
+
+      if (locationData.longitude < -180 || locationData.longitude > 180) {
+        return { isValid: false, error: "La longitud debe estar entre -180 y 180 grados" };
+      }
+    }
+
+    if (locationData.formatted.length > 300) {
+      return { isValid: false, error: "La ubicación es demasiado larga (máximo 300 caracteres)" };
+    }
+
+    return { isValid: true };
+  }
+
+  static createLocationData(location: string): LocationData {
+    return {
+      type: 'text_address',
+      formatted: location.trim()
+    };
   }
 
   static validatePhone(phone: string): ValidationResult {

@@ -1,7 +1,7 @@
 import { BaileysProvider } from "@builderbot/provider-baileys";
 import { DriverService } from "./driver.service.js";
 import { ValidationUtils } from "../utils/validation.js";
-import { NotificationResult, TaxiRequest, Driver } from "../types/index.js";
+import { NotificationResult, TaxiRequest, Driver, LocationData } from "../types/index.js";
 import { MESSAGES } from "../constants/messages.js";
 
 export class NotificationService {
@@ -59,8 +59,43 @@ export class NotificationService {
             driver.phone
           );
 
-          // Enviar mensaje
+          // Enviar mensaje de texto primero
           await this.provider.sendMessage(formattedPhone, message, {});
+
+          // Si hay locationData de WhatsApp, enviar también como mapa
+          if (request.locationData && request.locationData.type === 'whatsapp_location' && 
+              request.locationData.latitude && request.locationData.longitude) {
+            
+            console.log(`🗺️ SENDING LOCATION MAP to driver ${driver.name} (${driver.phone})`);
+            console.log(`📍 Coordinates: ${request.locationData.latitude}, ${request.locationData.longitude}`);
+            console.log(`📍 Name: ${request.locationData.name}`);
+            console.log(`📍 Address: ${request.locationData.address}`);
+            
+            // Enviar ubicación como mapa
+            const locationPayload = {
+              location: {
+                degreesLatitude: request.locationData.latitude,
+                degreesLongitude: request.locationData.longitude,
+                name: request.locationData.name || "Ubicación del cliente",
+                address: request.locationData.address || ""
+              }
+            };
+            
+            console.log(`📤 Location payload:`, JSON.stringify(locationPayload, null, 2));
+            
+            try {
+              await this.provider.vendor.sendMessage(formattedPhone, locationPayload);
+              console.log(`✅ Location map sent successfully to ${driver.phone}`);
+            } catch (locationError) {
+              console.error(`❌ Error sending location map to ${driver.phone}:`, locationError);
+            }
+          } else {
+            console.log(`📍 No location data to send as map for driver ${driver.phone}`);
+            if (request.locationData) {
+              console.log(`📍 LocationData type: ${request.locationData.type}`);
+              console.log(`📍 Has coordinates: lat=${!!request.locationData.latitude}, lng=${!!request.locationData.longitude}`);
+            }
+          }
 
           // Opcional: Enviar presencia de "typing"
           await this.provider.vendor.sendPresenceUpdate(

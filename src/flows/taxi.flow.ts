@@ -1,11 +1,11 @@
-import { addKeyword, utils } from "@builderbot/bot";
+import { addKeyword, utils, EVENTS } from "@builderbot/bot";
 import { BaileysProvider } from "@builderbot/provider-baileys";
 import { MemoryDB } from "@builderbot/bot";
 import { MESSAGES } from "../constants/messages.js";
 import { ValidationUtils } from "../utils/validation.js";
 import { RequestService } from "../services/request.service.js";
 import { NotificationService } from "../services/notification.service.js";
-import { RequestStatus } from "~/types/index.js";
+import { LocationData, RequestStatus } from "~/types/index.js";
 
 // Flujo especial para limpiar estado cuando se asigna taxi
 export const taxiAssignedFlow = addKeyword<BaileysProvider, MemoryDB>([
@@ -43,9 +43,306 @@ export const postTimeoutFlow = addKeyword<BaileysProvider, MemoryDB>([
   // Si no había timeout, no hacer nada (dejar que otros flujos manejen)
 });
 
+// Flujo para manejar ubicación de WhatsApp
+export const taxiLocationFlow = addKeyword<BaileysProvider, MemoryDB>(
+  EVENTS.LOCATION
+).addAction(async (ctx, { flowDynamic, state, gotoFlow }) => {
+  try {
+    console.log("🗺️ LOCATION FLOW ACTIVATED");
+    console.log("📱 ctx.body:", ctx.body);
+    console.log("📍 ctx.message:", JSON.stringify(ctx.message, null, 2));
+    
+    // Verificar si el usuario está en proceso de solicitar taxi
+    const clientName = state.get("clientName");
+    console.log("👤 clientName from state:", clientName);
+    
+    if (!clientName) {
+      console.log("❌ No client name in state, ignoring location");
+      // Usuario no está en proceso de solicitar taxi, ignorar ubicación
+      return;
+    }
+
+    // Extraer datos de ubicación de WhatsApp
+    const locationMessage = ctx.message?.locationMessage;
+    console.log("📍 locationMessage:", JSON.stringify(locationMessage, null, 2));
+    
+    if (!locationMessage) {
+      await flowDynamic("❌ No se pudo procesar la ubicación. Intenta nuevamente.");
+      return;
+    }
+
+    const latitude = locationMessage.degreesLatitude;
+    const longitude = locationMessage.degreesLongitude;
+    const name = locationMessage.name || "Ubicación compartida";
+    const address = locationMessage.address || `${latitude}, ${longitude}`;
+
+    // Confirmar ubicación recibida
+    await flowDynamic(`✅ Ubicación recibida: ${name}`);
+    if (address !== name) {
+      await flowDynamic(`📍 Dirección: ${address}`);
+    }
+
+    // Crear formato de ubicación que incluye coordenadas y texto
+    const locationData = {
+      type: 'whatsapp_location',
+      latitude,
+      longitude,
+      name,
+      address,
+      formatted: `${name} - ${address}`
+    };
+
+    // Guardar ubicación en estado
+    const clientPhone = ctx.from;
+    await state.update({
+      clientLocation: locationData.formatted,
+      clientLocationData: locationData,
+      clientPhone: clientPhone,
+    });
+
+    try {
+      // Crear solicitud de taxi
+      const requestResult = await requestService.createTaxiRequest({
+        clientName,
+        clientPhone,
+        location: locationData.formatted,
+        locationData: locationData as LocationData
+      });
+
+      if (!requestResult.success) {
+        await flowDynamic(`❌ ${requestResult.error}`);
+        return;
+      }
+
+      const request = requestResult.data!;
+
+      // Guardar ID de solicitud en estado y marcar como esperando
+      await state.update({ 
+        requestId: request.id,
+        isWaitingForDriver: true 
+      });
+
+      // Notificar a todos los conductores activos
+      const notificationResult =
+        await notificationService.sendToAllActiveDrivers(request);
+
+      if (notificationResult.sent === 0) {
+        // No hay conductores disponibles
+        await flowDynamic(MESSAGES.TAXI.NO_DRIVERS_AVAILABLE);
+
+        // Cancelar la solicitud automáticamente
+        await requestService.cancelRequest(
+          request.id,
+          "No hay conductores disponibles"
+        );
+        return;
+      }
+
+      // Mensaje combinado: búsqueda, notificación y espera
+      await flowDynamic(
+        `🔍 Buscando taxi disponible...\n✅ Se notificó a ${notificationResult.sent} conductores disponibles.\n⏳ Esperando respuesta de los conductores (máximo 20 segundos)...\n\n❌ Presiona "2" para cancelar tu solicitud`
+      );
+
+      console.log(
+        `Taxi request created: ${request.id} for ${clientName} - Notified ${notificationResult.sent} drivers`
+      );
+
+      // Configurar timeout de 20 segundos
+      const timeoutId = setTimeout(async () => {
+        try {
+          // Verificar si la solicitud sigue pendiente
+          const currentRequest = await requestService.getRequestById(
+            request.id
+          );
+
+          if (
+            currentRequest.success &&
+            currentRequest.data?.status === "PENDING"
+          ) {
+            // Cancelar la solicitud
+            await requestService.cancelRequest(
+              request.id,
+              "Timeout - ningún conductor aceptó en 20 segundos"
+            );
+
+            // Marcar que hubo timeout y limpiar resto del estado
+            await state.clear();
+            await state.update({ hadTimeout: true });
+
+            // Enviar mensaje de timeout y menú
+            try {
+              await flowDynamic(
+                "⏰ Ningún conductor ha aceptado tu solicitud en este momento."
+              );
+              await flowDynamic(
+                [MESSAGES.GREETING, MESSAGES.MENU].join("\n\n")
+              );
+            } catch (flowError) {
+              console.error(
+                "Error sending timeout message via flowDynamic:",
+                flowError
+              );
+              // Fallback: usar notificationService
+              await notificationService.sendToClient(
+                clientPhone,
+                "⏰ Ningún conductor ha aceptado tu solicitud en este momento.\n\n" +
+                  MESSAGES.GREETING +
+                  "\n\n" +
+                  MESSAGES.MENU
+              );
+            }
+
+            console.log(`Request ${request.id} timed out after 20 seconds`);
+          }
+        } catch (error) {
+          console.error("Error in timeout handler:", error);
+        }
+      }, 20000); // 20 segundos
+
+      // Guardar el timeout ID en el estado
+      await state.update({ timeoutId: timeoutId });
+    } catch (error) {
+      console.error("Error in taxi location flow:", error);
+      await flowDynamic(MESSAGES.ERRORS.SYSTEM_ERROR);
+    }
+  } catch (error) {
+    console.error("Error processing WhatsApp location:", error);
+    await flowDynamic(MESSAGES.ERRORS.SYSTEM_ERROR);
+  }
+});
+
 // Servicios globales (se inicializarán en app.ts)
 let requestService: RequestService;
 let notificationService: NotificationService;
+
+// Función helper para procesar datos de ubicación
+async function processLocationData(
+  locationData: LocationData, 
+  ctx: any, 
+  state: any, 
+  flowDynamic: any
+) {
+  try {
+    console.log("🔄 PROCESSING LOCATION DATA:");
+    console.log("📍 LocationData received:", JSON.stringify(locationData, null, 2));
+    
+    const clientName = state.get("clientName");
+    const clientPhone = ctx.from;
+
+    console.log(`👤 Client: ${clientName}, Phone: ${clientPhone}`);
+
+    // Guardar ubicación en estado
+    await state.update({
+      clientLocation: locationData.formatted,
+      clientLocationData: locationData,
+      clientPhone: clientPhone,
+    });
+
+    console.log("💾 State updated with location data");
+
+    // Crear solicitud de taxi
+    const requestPayload = {
+      clientName,
+      clientPhone,
+      location: locationData.formatted,
+      locationData: locationData
+    };
+    
+    console.log("📤 Creating taxi request with payload:", JSON.stringify(requestPayload, null, 2));
+    
+    const requestResult = await requestService.createTaxiRequest(requestPayload);
+
+    if (!requestResult.success) {
+      await flowDynamic(`❌ ${requestResult.error}`);
+      return;
+    }
+
+    const request = requestResult.data!;
+    
+    // IMPORTANTE: Adjuntar locationData al request ya que no se guarda en DB
+    request.locationData = locationData;
+    
+    console.log("🗺️ Request with locationData:", JSON.stringify({
+      id: request.id,
+      location: request.location,
+      locationData: request.locationData
+    }, null, 2));
+
+    // Guardar ID de solicitud en estado y marcar como esperando
+    await state.update({ 
+      requestId: request.id,
+      isWaitingForDriver: true 
+    });
+
+    // Notificar a todos los conductores activos
+    const notificationResult = await notificationService.sendToAllActiveDrivers(request);
+
+    if (notificationResult.sent === 0) {
+      // No hay conductores disponibles
+      await flowDynamic(MESSAGES.TAXI.NO_DRIVERS_AVAILABLE);
+
+      // Cancelar la solicitud automáticamente
+      await requestService.cancelRequest(
+        request.id,
+        "No hay conductores disponibles"
+      );
+      return;
+    }
+
+    // Mensaje combinado: búsqueda, notificación y espera
+    await flowDynamic(
+      `🔍 Buscando taxi disponible...\n✅ Se notificó a ${notificationResult.sent} conductores disponibles.\n⏳ Esperando respuesta de los conductores (máximo 20 segundos)...\n\n❌ Presiona "2" para cancelar tu solicitud`
+    );
+
+    console.log(
+      `Taxi request created: ${request.id} for ${clientName} - Notified ${notificationResult.sent} drivers`
+    );
+
+    // Configurar timeout de 20 segundos
+    const timeoutId = setTimeout(async () => {
+      try {
+        // Verificar si la solicitud sigue pendiente
+        const currentRequest = await requestService.getRequestById(request.id);
+
+        if (currentRequest.success && currentRequest.data?.status === "PENDING") {
+          // Cancelar la solicitud
+          await requestService.cancelRequest(
+            request.id,
+            "Timeout - ningún conductor aceptó en 20 segundos"
+          );
+
+          // Marcar que hubo timeout y limpiar resto del estado
+          await state.clear();
+          await state.update({ hadTimeout: true });
+
+          // Enviar mensaje de timeout y menú
+          try {
+            await flowDynamic("⏰ Ningún conductor ha aceptado tu solicitud en este momento.");
+            await flowDynamic([MESSAGES.GREETING, MESSAGES.MENU].join("\n\n"));
+          } catch (flowError) {
+            console.error("Error sending timeout message via flowDynamic:", flowError);
+            // Fallback: usar notificationService
+            await notificationService.sendToClient(
+              clientPhone,
+              "⏰ Ningún conductor ha aceptado tu solicitud en este momento.\n\n" +
+                MESSAGES.GREETING + "\n\n" + MESSAGES.MENU
+            );
+          }
+
+          console.log(`Request ${request.id} timed out after 20 seconds`);
+        }
+      } catch (error) {
+        console.error("Error in timeout handler:", error);
+      }
+    }, 20000); // 20 segundos
+
+    // Guardar el timeout ID en el estado
+    await state.update({ timeoutId: timeoutId });
+  } catch (error) {
+    console.error("Error in processLocationData:", error);
+    await flowDynamic(MESSAGES.ERRORS.SYSTEM_ERROR);
+  }
+}
 
 export const setTaxiFlowServices = (
   reqService: RequestService,
@@ -85,8 +382,73 @@ export const taxiFlow = addKeyword<BaileysProvider, MemoryDB>(
     { capture: true },
     async (ctx, { fallBack, flowDynamic, state }) => {
       const location = ctx.body.trim();
+      
+      console.log("📝 TEXT FLOW RECEIVED:");
+      console.log("📱 ctx.body:", ctx.body);
+      console.log("📍 ctx.message exists:", !!ctx.message);
+      
+      // Detectar si es un evento de ubicación de WhatsApp
+      if (location.includes("event_location_")) {
+        console.log("🗺️ Detected event_location in TEXT FLOW");
+        console.log("📍 Full ctx.message:", JSON.stringify(ctx.message, null, 2));
+        
+        // Esto es un evento de ubicación de WhatsApp pero no se procesó correctamente
+        // Intentar extraer datos de ubicación del contexto
+        const locationMessage = ctx.message?.locationMessage;
+        console.log("📍 locationMessage in text flow:", JSON.stringify(locationMessage, null, 2));
+        
+        if (locationMessage) {
+          console.log("✅ LocationMessage found! Processing coordinates...");
+          
+          // Procesar como ubicación de WhatsApp
+          const latitude = locationMessage.degreesLatitude;
+          const longitude = locationMessage.degreesLongitude;
+          const name = locationMessage.name || "Ubicación compartida";
+          const address = locationMessage.address || `${latitude}, ${longitude}`;
 
-      // Validar ubicación
+          console.log(`📍 Extracted coordinates: lat=${latitude}, lng=${longitude}`);
+          console.log(`📍 Name: ${name}`);
+          console.log(`📍 Address: ${address}`);
+
+          // Confirmar ubicación recibida
+          await flowDynamic(`✅ Ubicación recibida: ${name}`);
+          if (address !== name) {
+            await flowDynamic(`📍 Dirección: ${address}`);
+          }
+
+          // Crear formato de ubicación que incluye coordenadas y texto
+          const locationData = {
+            type: 'whatsapp_location' as const,
+            latitude,
+            longitude,
+            name,
+            address,
+            formatted: `${name} - ${address}`
+          };
+
+          // Continuar con el procesamiento usando los datos de ubicación
+          await processLocationData(locationData, ctx, state, flowDynamic);
+          return;
+        } else {
+          console.log("❌ LocationMessage NOT found in ctx.message");
+          console.log("🔍 Available keys in ctx.message:", Object.keys(ctx.message || {}));
+          
+          // Intentar buscar en otras propiedades posibles
+          if (ctx.message) {
+            console.log("🔍 Searching for location data in other properties...");
+            for (const [key, value] of Object.entries(ctx.message)) {
+              if (typeof value === 'object' && value !== null) {
+                console.log(`🔍 ${key}:`, JSON.stringify(value, null, 2));
+              }
+            }
+          }
+          
+          // No se pudo extraer la ubicación, solicitar nuevamente
+          return fallBack("❌ No se pudo procesar la ubicación de WhatsApp. Por favor, envía tu ubicación nuevamente usando el botón de ubicación 📍 de WhatsApp.");
+        }
+      }
+
+      // Procesar como dirección de texto
       const validation = ValidationUtils.validateLocation(location);
 
       if (!validation.isValid) {
@@ -97,116 +459,11 @@ export const taxiFlow = addKeyword<BaileysProvider, MemoryDB>(
       const clientName = state.get("clientName");
       const clientPhone = ctx.from;
 
-      // Guardar ubicación en estado
-      await state.update({
-        clientLocation: location,
-        clientPhone: clientPhone,
-      });
+      // Crear LocationData para direcciones de texto
+      const locationData = ValidationUtils.createLocationData(location);
 
-      try {
-        // Crear solicitud de taxi
-        const requestResult = await requestService.createTaxiRequest({
-          clientName,
-          clientPhone,
-          location,
-        });
-
-        if (!requestResult.success) {
-          await flowDynamic(`❌ ${requestResult.error}`);
-          return;
-        }
-
-        const request = requestResult.data!;
-
-        // Guardar ID de solicitud en estado y marcar como esperando
-        await state.update({ 
-          requestId: request.id,
-          isWaitingForDriver: true 
-        });
-
-        // Notificar a todos los conductores activos
-        const notificationResult =
-          await notificationService.sendToAllActiveDrivers(request);
-
-        if (notificationResult.sent === 0) {
-          // No hay conductores disponibles
-          await flowDynamic(MESSAGES.TAXI.NO_DRIVERS_AVAILABLE);
-
-          // Cancelar la solicitud automáticamente
-          await requestService.cancelRequest(
-            request.id,
-            "No hay conductores disponibles"
-          );
-          return;
-        }
-
-        // Mensaje combinado: búsqueda, notificación y espera
-        await flowDynamic(
-          `🔍 Buscando taxi disponible...\n✅ Se notificó a ${notificationResult.sent} conductores disponibles.\n⏳ Esperando respuesta de los conductores (máximo 20 segundos)...\n\n❌ Presiona "2" para cancelar tu solicitud`
-        );
-
-        console.log(
-          `Taxi request created: ${request.id} for ${clientName} - Notified ${notificationResult.sent} drivers`
-        );
-
-        // Configurar timeout de 20 segundos usando el contexto del flujo
-        const timeoutId = setTimeout(async () => {
-          try {
-            // Verificar si la solicitud sigue pendiente
-            const currentRequest = await requestService.getRequestById(
-              request.id
-            );
-
-            if (
-              currentRequest.success &&
-              currentRequest.data?.status === "PENDING"
-            ) {
-              // Cancelar la solicitud
-              await requestService.cancelRequest(
-                request.id,
-                "Timeout - ningún conductor aceptó en 20 segundos"
-              );
-
-              // Marcar que hubo timeout y limpiar resto del estado
-              await state.clear();
-              await state.update({ hadTimeout: true });
-
-              // Enviar mensaje de timeout y menú usando flowDynamic
-              try {
-                await flowDynamic(
-                  "⏰ Ningún conductor ha aceptado tu solicitud en este momento."
-                );
-                await flowDynamic(
-                  [MESSAGES.GREETING, MESSAGES.MENU].join("\n\n")
-                );
-              } catch (flowError) {
-                console.error(
-                  "Error sending timeout message via flowDynamic:",
-                  flowError
-                );
-                // Fallback: usar notificationService
-                await notificationService.sendToClient(
-                  clientPhone,
-                  "⏰ Ningún conductor ha aceptado tu solicitud en este momento.\n\n" +
-                    MESSAGES.GREETING +
-                    "\n\n" +
-                    MESSAGES.MENU
-                );
-              }
-
-              console.log(`Request ${request.id} timed out after 20 seconds`);
-            }
-          } catch (error) {
-            console.error("Error in timeout handler:", error);
-          }
-        }, 20000); // 20 segundos
-
-        // Guardar el timeout ID en el estado para poder cancelarlo si es necesario
-        await state.update({ timeoutId: timeoutId });
-      } catch (error) {
-        console.error("Error in taxi flow:", error);
-        await flowDynamic(MESSAGES.ERRORS.SYSTEM_ERROR);
-      }
+      // Usar función helper para procesar la ubicación
+      await processLocationData(locationData, ctx, state, flowDynamic);
     }
   );
 

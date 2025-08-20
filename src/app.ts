@@ -23,6 +23,7 @@ import {
 
 import {
   taxiFlow,
+  taxiLocationFlow,
   taxiAssignedFlow,
   postTimeoutFlow,
   cancelRequestFlow,
@@ -85,6 +86,7 @@ const main = async () => {
       infoFlow,
 
       // Flujos de taxi
+      taxiLocationFlow,  // IMPORTANTE: Debe ir antes de taxiFlow para capturar ubicaciones
       taxiFlow,
       cancelRequestFlow,
       statusFlow,
