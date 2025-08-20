@@ -7,7 +7,7 @@ export const MESSAGES = {
   
   TAXI: {
     ASK_NAME: "Por favor, dime tu nombre:",
-    ASK_LOCATION: "¿Cuál es tu ubicación actual?",
+    ASK_LOCATION: "📍 Es necesario que envíes tu ubicación usando la opción de WhatsApp\n\n⚠️ IMPORTANTE: Usa el botón de ubicación 📍 de WhatsApp para obtener tu ubicación exacta",
     SEARCHING: "🔍 Buscando taxi disponible, por favor espera un momento...",
     
     CLIENT_ASSIGNED: (driverName: string, plate: string, driverPhone: string) => 

@@ -142,7 +142,7 @@ export const taxiFlow = addKeyword<BaileysProvider, MemoryDB>(
 
         // Mensaje combinado: búsqueda, notificación y espera
         await flowDynamic(
-          `🔍 Buscando taxi disponible...\n✅ Se notificó a ${notificationResult.sent} conductores disponibles.\n⏳ Esperando respuesta de los conductores (máximo 20 segundos)...`
+          `🔍 Buscando taxi disponible...\n✅ Se notificó a ${notificationResult.sent} conductores disponibles.\n⏳ Esperando respuesta de los conductores (máximo 20 segundos)...\n\n❌ Presiona "2" para cancelar tu solicitud`
         );
 
         console.log(
@@ -214,16 +214,17 @@ export const taxiFlow = addKeyword<BaileysProvider, MemoryDB>(
 export const cancelRequestFlow = addKeyword<BaileysProvider, MemoryDB>([
   "cancelar",
   "cancel",
+  "2",
 ]).addAnswer(
-  "🤔 ¿Estás seguro de que quieres cancelar tu solicitud de taxi?",
+  "🤔 ¿Estás seguro de que quieres cancelar tu solicitud de taxi?\n\n1️⃣ Sí, cancelar\n2️⃣ No, mantener solicitud",
   {
     capture: true,
     delay: 500,
   },
   async (ctx, { flowDynamic, state }) => {
-    const response = ctx.body.toLowerCase().trim();
+    const response = ctx.body.trim();
 
-    if (["si", "sí", "yes", "ok", "confirmo", "seguro"].includes(response)) {
+    if (response === "1") {
       try {
         const clientPhone = ctx.from;
 
@@ -263,9 +264,13 @@ export const cancelRequestFlow = addKeyword<BaileysProvider, MemoryDB>([
         console.error("Error canceling request:", error);
         await flowDynamic(MESSAGES.ERRORS.SYSTEM_ERROR);
       }
-    } else {
+    } else if (response === "2") {
       await flowDynamic(
         "✅ Solicitud mantenida. Esperando asignación de conductor..."
+      );
+    } else {
+      await flowDynamic(
+        "❌ Opción inválida. Presiona:\n1️⃣ Para cancelar\n2️⃣ Para mantener tu solicitud"
       );
     }
   }

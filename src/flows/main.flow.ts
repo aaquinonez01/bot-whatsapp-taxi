@@ -34,7 +34,7 @@ export const mainFlow = addKeyword<BaileysProvider, MemoryDB>([
       
       if (isWaiting) {
         // Usuario está en espera, solo permitir comandos específicos
-        return fallBack("⏳ Estás esperando respuesta de los conductores. Puedes escribir 'cancelar' para cancelar tu solicitud.");
+        return fallBack("⏳ Estás esperando respuesta de los conductores. Presiona '2' para cancelar tu solicitud.");
       }
 
       // Validar opción seleccionada
@@ -157,7 +157,7 @@ export const fallbackFlow = addKeyword<BaileysProvider, MemoryDB>([
     const isWaiting = state.get("isWaitingForDriver");
     
     if (isWaiting) {
-      await flowDynamic("⏳ Estás esperando respuesta de los conductores. Puedes escribir 'cancelar' para cancelar tu solicitud.");
+      await flowDynamic("⏳ Estás esperando respuesta de los conductores. Presiona '2' para cancelar tu solicitud.");
       return;
     }
     

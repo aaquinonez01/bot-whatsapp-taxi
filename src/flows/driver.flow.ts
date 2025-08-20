@@ -182,7 +182,7 @@ export const driverRegisterFlow = addKeyword<BaileysProvider, MemoryDB>([
       }
 
       await state.update({ driverPlate: plate.toUpperCase() });
-      await flowDynamic('Ubicación actual (opcional, puedes escribir "skip"):');
+      await flowDynamic('📍 Ubicación actual (opcional, puedes escribir "skip"):\n\n⚠️ IMPORTANTE: Si proporcionas ubicación, usa el botón 📍 de WhatsApp para mayor precisión');
     }
   )
   .addAction({ capture: true }, async (ctx, { flowDynamic, state }) => {
@@ -299,7 +299,7 @@ export const driverLocationFlow = addKeyword<BaileysProvider, MemoryDB>([
         return;
       }
 
-      await flowDynamic("📍 Envía tu ubicación actual:");
+      await flowDynamic("📍 Es necesario que envíes tu ubicación usando el botón de ubicación de WhatsApp\n\n⚠️ IMPORTANTE: Usa el botón 📍 de WhatsApp para obtener tu ubicación exacta");
     } catch (error) {
       console.error("Error preparing driver location flow:", error);
     }
