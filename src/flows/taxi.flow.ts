@@ -9,12 +9,12 @@ import { RequestStatus } from "~/types/index.js";
 
 // Flujo especial para limpiar estado cuando se asigna taxi
 export const taxiAssignedFlow = addKeyword<BaileysProvider, MemoryDB>([
-  "procesada exitosamente"
+  "¡Taxi asignado!"
 ]).addAction(async (ctx, { state }) => {
   // Este flujo se activa cuando el cliente recibe el mensaje de asignación
   // Limpiar completamente el estado del cliente
   await state.clear();
-  console.log(`Estado limpiado para cliente ${ctx.from} después de asignación de taxi`);
+  console.log(`✅ Estado limpiado para cliente ${ctx.from} después de asignación de taxi`);
 });
 
 // Flujo especial para manejar interacciones después de timeout

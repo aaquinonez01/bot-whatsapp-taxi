@@ -74,8 +74,9 @@ const main = async () => {
 
     // Crear flujo principal
     const adapterFlow = createFlow([
-      // Flujo especial post-timeout (debe ir ANTES que mainFlow)
-      postTimeoutFlow,
+      // Flujos críticos que deben tener máxima prioridad
+      taxiAssignedFlow,  // CRÍTICO: Limpiar estado cuando se asigna taxi
+      postTimeoutFlow,   // Manejar interacciones post-timeout
       
       // Flujos principales
       mainFlow,
@@ -85,7 +86,6 @@ const main = async () => {
 
       // Flujos de taxi
       taxiFlow,
-      taxiAssignedFlow,
       cancelRequestFlow,
       statusFlow,
       completeRideFlow,

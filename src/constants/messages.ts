@@ -14,7 +14,7 @@ export const MESSAGES = {
       `✅ ¡Taxi asignado!\n👤 Conductor: ${driverName}\n🚗 Placa: ${plate}\n📱 Teléfono: ${driverPhone}`,
     
     DRIVER_NOTIFICATION: (clientName: string, location: string, requestId: string) => 
-      `🚕 Nueva solicitud de taxi:\n👤 Cliente: ${clientName}\n📍 Ubicación: ${location}\n\n💬 Responde "ACEPTO" para tomar esta carrera`,
+      `🚕 Nueva solicitud de taxi:\n👤 Cliente: ${clientName}\n📍 Ubicación: ${location}\n\n1️⃣ Presiona "1" para aceptar esta carrera`,
     
     DRIVER_ACCEPTED: "✅ ¡Carrera asignada! El cliente recibirá tu información.",
     

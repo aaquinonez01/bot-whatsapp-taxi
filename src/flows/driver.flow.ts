@@ -24,10 +24,7 @@ export const setDriverFlowServices = (
 
 // Flujo principal para aceptar carreras
 export const driverAcceptFlow = addKeyword<BaileysProvider, MemoryDB>([
-  "acepto",
-  "aceptar",
-  "tomo",
-  "la tomo",
+  "1",
 ]).addAction(async (ctx, { flowDynamic }) => {
   try {
     const driverPhone = ctx.from;
@@ -129,7 +126,7 @@ export const driverRejectFlow = addKeyword<BaileysProvider, MemoryDB>([
     const driverResult = await driverService.getDriverByPhone(driverPhone);
 
     if (!driverResult.success || !driverResult.data) {
-      await flowDynamic(MESSAGES.VALIDATION.DRIVER_NOT_FOUND);
+      // Si el usuario no es un conductor, salir silenciosamente
       return;
     }
 
@@ -225,7 +222,7 @@ export const driverRegisterFlow = addKeyword<BaileysProvider, MemoryDB>([
           await flowDynamic(`📍 Ubicación: ${driverLocation}`);
         }
         await flowDynamic(
-          '\n🚕 Ya puedes aceptar carreras escribiendo "acepto" cuando lleguen solicitudes.'
+          '\n🚕 Ya puedes aceptar carreras presionando "1" cuando lleguen solicitudes.'
         );
       } else {
         await flowDynamic(`❌ Error: ${createResult.error}`);
@@ -253,7 +250,7 @@ export const driverStatusFlow = addKeyword<BaileysProvider, MemoryDB>([
     const driverResult = await driverService.getDriverByPhone(driverPhone);
 
     if (!driverResult.success || !driverResult.data) {
-      await flowDynamic(MESSAGES.VALIDATION.DRIVER_NOT_FOUND);
+      // Si el usuario no es un conductor, salir silenciosamente
       return;
     }
 
@@ -357,7 +354,7 @@ export const driverInfoFlow = addKeyword<BaileysProvider, MemoryDB>([
     const driverResult = await driverService.getDriverByPhone(driverPhone);
 
     if (!driverResult.success || !driverResult.data) {
-      await flowDynamic(MESSAGES.VALIDATION.DRIVER_NOT_FOUND);
+      // Si el usuario no es un conductor, salir silenciosamente
       return;
     }
 
