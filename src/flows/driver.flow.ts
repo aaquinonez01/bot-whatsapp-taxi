@@ -99,12 +99,6 @@ export const driverAcceptFlow = addKeyword<BaileysProvider, MemoryDB>([
 
     console.log("🔍 Step 5: Notifying driver and client...");
     
-    // Notificar al conductor que fue asignado
-    await flowDynamic(MESSAGES.TAXI.DRIVER_ACCEPTED);
-    await flowDynamic(`👤 Cliente: ${assignedRequest.clientName}`);
-    await flowDynamic(`📍 Ubicación: ${assignedRequest.location}`);
-    await flowDynamic(`📱 Teléfono: ${assignedRequest.clientPhone}`);
-
     // Notificar al cliente con la información del conductor
     console.log("📞 Notifying client about assignment...");
     const clientNotificationSuccess =
@@ -115,7 +109,8 @@ export const driverAcceptFlow = addKeyword<BaileysProvider, MemoryDB>([
 
     if (clientNotificationSuccess) {
       console.log("✅ Client notification SUCCESSFUL");
-      await flowDynamic("✅ Cliente notificado con tu información.");
+      // Mensaje único y conciso para el conductor
+      await flowDynamic(`✅ Carrera asignada! El cliente recibirá tu información. Este es su número para que puedas comunicarte con él y coordinar la carrera: ${assignedRequest.clientPhone}`);
     } else {
       console.log("❌ Client notification FAILED");
       await flowDynamic(
