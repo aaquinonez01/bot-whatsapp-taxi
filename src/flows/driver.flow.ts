@@ -67,7 +67,9 @@ export const driverAcceptFlow = addKeyword<BaileysProvider, MemoryDB>([
     if (!oldestRequestResult.success || !oldestRequestResult.data) {
       console.log("❌ NO pending requests found");
       console.log(`❌ Request result: ${JSON.stringify(oldestRequestResult)}`);
-      await flowDynamic(MESSAGES.TAXI.DRIVER_TOO_LATE);
+      
+      // Nuevo mensaje más amigable para cuando no hay carreras pendientes
+      await flowDynamic(MESSAGES.TAXI.NO_PENDING_REQUESTS);
       return;
     }
 

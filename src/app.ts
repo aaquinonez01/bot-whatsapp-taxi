@@ -21,6 +21,7 @@ import {
   fallbackFlow,
   goodbyeFlow,
   welcomeFlow,
+  setMainFlowServices,
 } from "./flows/main.flow.js";
 
 import {
@@ -72,6 +73,7 @@ const main = async () => {
     // Configurar servicios en flujos
     setTaxiFlowServices(requestService, notificationService);
     setDriverFlowServices(driverService, requestService, notificationService);
+    setMainFlowServices(driverService);
     console.log("✅ Servicios configurados en flujos");
 
     // Crear flujo principal

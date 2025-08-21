@@ -1,5 +1,6 @@
 export const MESSAGES = {
   GREETING: "¡Hola! Bienvenido a Taxi Cooperativa 🚕",
+  DRIVER_WELCOME: "Hola conductor, Espero que tenga un buen día, estaré pendiente de todas las solicitudes de los clientes.",
   MENU: `Selecciona una opción:
 1️⃣ Pedir un taxi`,
   
@@ -17,6 +18,8 @@ export const MESSAGES = {
     DRIVER_ACCEPTED: "✅ ¡Carrera asignada! El cliente recibirá tu información.",
     
     DRIVER_TOO_LATE: "❌ Esta carrera ya fue tomada por otro conductor.",
+    
+    NO_PENDING_REQUESTS: "No hay carreras pendientes en este momento. Te notificaremos cuando lleguen solicitudes.",
     
     OTHER_DRIVERS_NOTIFICATION: (driverName: string) => 
       `❌ La carrera fue tomada por ${driverName}`,
