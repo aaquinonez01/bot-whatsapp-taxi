@@ -6,6 +6,9 @@ import { BaileysProvider as Provider } from "@builderbot/provider-baileys";
 // Configuración
 import { config, validateConfig } from "./config/environments.js";
 
+// Constantes
+import { MESSAGES } from "./constants/messages.js";
+
 // Servicios
 import { DriverService } from "./services/driver.service.js";
 import { RequestService } from "./services/request.service.js";
@@ -20,7 +23,6 @@ import {
   fallbackFlow,
   goodbyeFlow,
   welcomeFlow,
-  globalFallbackFlow,
 } from "./flows/main.flow.js";
 
 import {
@@ -77,7 +79,7 @@ const main = async () => {
 
     // Crear flujo principal
     const adapterFlow = createFlow([
-      // Flujo de bienvenida - DEBE IR PRIMERO para capturar usuarios nuevos
+      // Flujo de bienvenida - DEBE IR PRIMERO para capturar mensajes no coincidentes
       welcomeFlow,
       
       // Flujos críticos que deben tener máxima prioridad
@@ -109,9 +111,6 @@ const main = async () => {
       // Flujos de control
       goodbyeFlow,
       fallbackFlow,
-      
-      // Flujo global fallback - DEBE IR AL FINAL para capturar mensajes no procesados
-      globalFallbackFlow,
     ]);
 
     const { handleCtx, httpServer } = await createBot({
