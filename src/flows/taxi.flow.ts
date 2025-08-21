@@ -512,7 +512,7 @@ export const cancelRequestFlow = addKeyword<BaileysProvider, MemoryDB>([
   "cancel",
   "2",
 ])
-  .addAction(async (ctx, { flowDynamic, endFlow }) => {
+  .addAction(async (ctx, { flowDynamic, endFlow, gotoFlow }) => {
     try {
       const userPhone = ctx.from;
 
@@ -534,10 +534,23 @@ export const cancelRequestFlow = addKeyword<BaileysProvider, MemoryDB>([
         return endFlow(MESSAGES.DRIVER_WELCOME);
       }
 
-      // No es conductor - continuar con lógica normal de cancelación
+      // No es conductor - verificar si tiene solicitud pendiente
       console.log(
-        "👤 CancelRequestFlow: User is not a driver, proceeding with cancellation flow"
+        "👤 CancelRequestFlow: User is not a driver, checking for pending requests..."
       );
+      
+      // Verificar si el cliente tiene realmente una solicitud pendiente
+      const pendingResult = await requestService.getClientPendingRequest(userPhone);
+      
+      if (!pendingResult.success || !pendingResult.data) {
+        console.log("❌ CancelRequestFlow: No pending requests found for client - going to mainFlow");
+        await flowDynamic([MESSAGES.GREETING, MESSAGES.MENU].join("\n\n"));
+        // Importar mainFlow dinámicamente para evitar dependencias circulares
+        const { mainFlow } = await import("./main.flow.js");
+        return gotoFlow(mainFlow);
+      }
+      
+      console.log(`✅ CancelRequestFlow: Found pending request ${pendingResult.data.id} for client`);
       await flowDynamic(
         "🤔 ¿Estás seguro de que quieres cancelar tu solicitud de taxi?\n\n1️⃣ Sí, cancelar\n2️⃣ No, mantener solicitud"
       );
