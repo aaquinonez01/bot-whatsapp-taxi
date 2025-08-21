@@ -196,6 +196,15 @@ export const welcomeFlow = addKeyword<BaileysProvider, MemoryDB>(EVENTS.WELCOME)
         );
       }
 
+      // Verificar si el usuario está en medio de un flujo de taxi
+      const clientName = state.get("clientName");
+      const isWaitingForDriver = state.get("isWaitingForDriver");
+      
+      if (clientName || isWaitingForDriver) {
+        console.log(`🚕 User is in the middle of taxi flow - ignoring welcomeFlow (clientName: ${clientName}, waiting: ${isWaitingForDriver})`);
+        return; // No interrumpir el flujo de taxi
+      }
+
       // Limpiar el número de teléfono usando la utilidad
       const cleanPhone = ValidationUtils.cleanPhoneNumber(userPhone);
       console.log(`🧽 Cleaned phone: ${userPhone} -> ${cleanPhone}`);
