@@ -1,4 +1,4 @@
-import { addKeyword, utils } from "@builderbot/bot";
+import { addKeyword, utils, EVENTS } from "@builderbot/bot";
 import { BaileysProvider } from "@builderbot/provider-baileys";
 import { MemoryDB } from "@builderbot/bot";
 import { MESSAGES } from "../constants/messages.js";
@@ -167,6 +167,57 @@ export const fallbackFlow = addKeyword<BaileysProvider, MemoryDB>([
     }
   }
 );
+
+// Flujo de bienvenida que se activa con CUALQUIER mensaje de usuarios nuevos
+export const welcomeFlow = addKeyword<BaileysProvider, MemoryDB>(
+  EVENTS.WELCOME
+).addAction(async (ctx, { gotoFlow, state, flowDynamic }) => {
+  // Verificar si el usuario ya está esperando una respuesta de conductor
+  const isWaiting = state.get("isWaitingForDriver");
+  
+  if (isWaiting) {
+    await flowDynamic("⏳ Estás esperando respuesta de los conductores. Presiona '2' para cancelar tu solicitud.");
+    return;
+  }
+
+  // Verificar si había un timeout previo
+  const hadTimeout = state.get("hadTimeout");
+  if (hadTimeout) {
+    // Limpiar el flag de timeout y procesar como si fuera entrada al menú
+    await state.clear();
+  }
+
+  // Mostrar automáticamente el saludo y menú para cualquier mensaje
+  await flowDynamic([MESSAGES.GREETING, MESSAGES.MENU].join("\n\n"));
+  
+  // Ir al flujo principal para capturar la siguiente respuesta
+  return gotoFlow(mainFlow);
+});
+
+// Flujo de captura universal usando setEvent idle/action
+export const globalFallbackFlow = addKeyword<BaileysProvider, MemoryDB>(
+  utils.setEvent("__idle__")
+).addAction(async (ctx, { gotoFlow, state, flowDynamic }) => {
+  // Verificar si el usuario ya está esperando una respuesta de conductor
+  const isWaiting = state.get("isWaitingForDriver");
+  
+  if (isWaiting) {
+    await flowDynamic("⏳ Estás esperando respuesta de los conductores. Presiona '2' para cancelar tu solicitud.");
+    return;
+  }
+
+  // Verificar si había un timeout previo
+  const hadTimeout = state.get("hadTimeout");
+  if (hadTimeout) {
+    await state.clear();
+  }
+
+  // Mostrar automáticamente el saludo y menú para cualquier mensaje
+  await flowDynamic([MESSAGES.GREETING, MESSAGES.MENU].join("\n\n"));
+  
+  // Ir al flujo principal para capturar la siguiente respuesta
+  return gotoFlow(mainFlow);
+});
 
 // Flujo para manejar despedidas
 export const goodbyeFlow = addKeyword<BaileysProvider, MemoryDB>([

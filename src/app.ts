@@ -19,6 +19,8 @@ import {
   infoFlow,
   fallbackFlow,
   goodbyeFlow,
+  welcomeFlow,
+  globalFallbackFlow,
 } from "./flows/main.flow.js";
 
 import {
@@ -75,6 +77,9 @@ const main = async () => {
 
     // Crear flujo principal
     const adapterFlow = createFlow([
+      // Flujo de bienvenida - DEBE IR PRIMERO para capturar usuarios nuevos
+      welcomeFlow,
+      
       // Flujos críticos que deben tener máxima prioridad
       taxiAssignedFlow,  // CRÍTICO: Limpiar estado cuando se asigna taxi
       postTimeoutFlow,   // Manejar interacciones post-timeout
@@ -104,6 +109,9 @@ const main = async () => {
       // Flujos de control
       goodbyeFlow,
       fallbackFlow,
+      
+      // Flujo global fallback - DEBE IR AL FINAL para capturar mensajes no procesados
+      globalFallbackFlow,
     ]);
 
     const { handleCtx, httpServer } = await createBot({
