@@ -59,19 +59,16 @@ export class NotificationService {
             driver.phone
           );
 
-          // Enviar mensaje de texto primero
-          await this.provider.sendMessage(formattedPhone, message, {});
-
-          // Si hay locationData de WhatsApp, enviar también como mapa
+          // Si hay locationData de WhatsApp, enviar PRIMERO el mapa
           if (request.locationData && request.locationData.type === 'whatsapp_location' && 
               request.locationData.latitude && request.locationData.longitude) {
             
-            console.log(`🗺️ SENDING LOCATION MAP to driver ${driver.name} (${driver.phone})`);
+            console.log(`🗺️ SENDING LOCATION MAP FIRST to driver ${driver.name} (${driver.phone})`);
             console.log(`📍 Coordinates: ${request.locationData.latitude}, ${request.locationData.longitude}`);
             console.log(`📍 Name: ${request.locationData.name}`);
             console.log(`📍 Address: ${request.locationData.address}`);
             
-            // Enviar ubicación como mapa
+            // Enviar ubicación como mapa PRIMERO
             const locationPayload = {
               location: {
                 degreesLatitude: request.locationData.latitude,
@@ -86,6 +83,9 @@ export class NotificationService {
             try {
               await this.provider.vendor.sendMessage(formattedPhone, locationPayload);
               console.log(`✅ Location map sent successfully to ${driver.phone}`);
+              
+              // Pequeño delay para asegurar que el mapa se envíe antes del mensaje
+              await new Promise(resolve => setTimeout(resolve, 1000));
             } catch (locationError) {
               console.error(`❌ Error sending location map to ${driver.phone}:`, locationError);
             }
@@ -97,11 +97,8 @@ export class NotificationService {
             }
           }
 
-          // Opcional: Enviar presencia de "typing"
-          await this.provider.vendor.sendPresenceUpdate(
-            "composing",
-            formattedPhone
-          );
+          // Enviar mensaje de solicitud AL FINAL para que sea el último contexto
+          await this.provider.sendMessage(formattedPhone, message, {});
 
           sent++;
         } catch (error) {
@@ -132,6 +129,7 @@ export class NotificationService {
       );
 
       const message =
+        "¡Taxi asignado!\n\n" +
         MESSAGES.TAXI.CLIENT_ASSIGNED(driver.name, driver.plate, driver.phone) +
         "\n\n✅ Tu solicitud ha sido procesada exitosamente.";
 

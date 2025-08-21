@@ -29,7 +29,6 @@ import {
   taxiFlow,
   taxiLocationFlow,
   taxiAssignedFlow,
-  postTimeoutFlow,
   cancelRequestFlow,
   statusFlow,
   completeRideFlow,
@@ -79,13 +78,20 @@ const main = async () => {
 
     // Crear flujo principal
     const adapterFlow = createFlow([
-      // Flujo de bienvenida - DEBE IR PRIMERO para capturar mensajes no coincidentes
-      welcomeFlow,
-      
       // Flujos críticos que deben tener máxima prioridad
-      taxiAssignedFlow,  // CRÍTICO: Limpiar estado cuando se asigna taxi
-      postTimeoutFlow,   // Manejar interacciones post-timeout
-      
+      welcomeFlow,
+      taxiAssignedFlow, // CRÍTICO: Limpiar estado cuando se asigna taxi
+
+      // Flujos de conductores - MÁXIMA PRIORIDAD para aceptar carreras
+      driverAcceptFlow, // CRÍTICO: Debe ir ANTES que postTimeoutFlow y todos los demás
+      driverRejectFlow,
+      driverRegisterFlow,
+      driverStatusFlow,
+      driverLocationFlow,
+      driverInfoFlow,
+
+      // postTimeoutFlow eliminado - causaba conflictos con driverAcceptFlow
+
       // Flujos principales
       mainFlow,
       quickTaxiFlow,
@@ -93,24 +99,18 @@ const main = async () => {
       infoFlow,
 
       // Flujos de taxi
-      taxiLocationFlow,  // IMPORTANTE: Debe ir antes de taxiFlow para capturar ubicaciones
+      taxiLocationFlow, // IMPORTANTE: Debe ir antes de taxiFlow para capturar ubicaciones
       taxiFlow,
       cancelRequestFlow,
       statusFlow,
       completeRideFlow,
       checkTimeoutFlow,
 
-      // Flujos de conductores
-      driverAcceptFlow,
-      driverRejectFlow,
-      driverRegisterFlow,
-      driverStatusFlow,
-      driverLocationFlow,
-      driverInfoFlow,
-
       // Flujos de control
       goodbyeFlow,
       fallbackFlow,
+
+      // Flujo de bienvenida - AL FINAL para capturar mensajes no coincidentes
     ]);
 
     const { handleCtx, httpServer } = await createBot({

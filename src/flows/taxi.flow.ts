@@ -12,36 +12,21 @@ export const taxiAssignedFlow = addKeyword<BaileysProvider, MemoryDB>([
   "¡Taxi asignado!"
 ]).addAction(async (ctx, { state }) => {
   // Este flujo se activa cuando el cliente recibe el mensaje de asignación
+  
+  // Limpiar el timeout si existe
+  const timeoutId = state.get("timeoutId");
+  if (timeoutId) {
+    clearTimeout(timeoutId);
+    console.log(`🕐 Timeout limpiado para cliente ${ctx.from}`);
+  }
+  
   // Limpiar completamente el estado del cliente
   await state.clear();
   console.log(`✅ Estado limpiado para cliente ${ctx.from} después de asignación de taxi`);
 });
 
-// Flujo especial para manejar interacciones después de timeout
-export const postTimeoutFlow = addKeyword<BaileysProvider, MemoryDB>([
-  "1", "2", "3"
-]).addAction(async (ctx, { state, gotoFlow }) => {
-  const hadTimeout = state.get("hadTimeout");
-  
-  if (hadTimeout) {
-    // Limpiar el flag de timeout
-    await state.clear();
-    
-    const option = ctx.body.trim();
-    
-    // Procesar la opción seleccionada
-    if (option === "1") {
-      return gotoFlow(taxiFlow);
-    } else if (option === "2") {
-      const { supportFlow } = await import("./main.flow.js");
-      return gotoFlow(supportFlow);
-    } else if (option === "3") {
-      const { infoFlow } = await import("./main.flow.js");
-      return gotoFlow(infoFlow);
-    }
-  }
-  // Si no había timeout, no hacer nada (dejar que otros flujos manejen)
-});
+// ELIMINADO postTimeoutFlow que causaba conflictos con driverAcceptFlow
+// La lógica de timeout se maneja ahora en welcomeFlow y mainFlow
 
 // Flujo para manejar ubicación de WhatsApp
 export const taxiLocationFlow = addKeyword<BaileysProvider, MemoryDB>(

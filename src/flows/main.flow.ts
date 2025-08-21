@@ -29,6 +29,13 @@ export const mainFlow = addKeyword<BaileysProvider, MemoryDB>([
     async (ctx, { gotoFlow, fallBack, state }) => {
       const option = ctx.body.trim();
 
+      // Verificar si había un timeout previo y limpiar
+      const hadTimeout = state.get("hadTimeout");
+      if (hadTimeout) {
+        await state.clear();
+        console.log(`🧹 Timeout state cleared for user ${ctx.from}`);
+      }
+
       // Verificar si el usuario ya está esperando una respuesta de conductor
       const isWaiting = state.get("isWaitingForDriver");
       
@@ -187,6 +194,13 @@ export const welcomeFlow = addKeyword<BaileysProvider, MemoryDB>(
     },
     async (ctx, { gotoFlow, fallBack, state }) => {
       const option = ctx.body.trim();
+
+      // Verificar si había un timeout previo y limpiar
+      const hadTimeout = state.get("hadTimeout");
+      if (hadTimeout) {
+        await state.clear();
+        console.log(`🧹 Timeout state cleared for user ${ctx.from} in welcomeFlow`);
+      }
 
       // Verificar si el usuario ya está esperando una respuesta de conductor
       const isWaiting = state.get("isWaitingForDriver");
