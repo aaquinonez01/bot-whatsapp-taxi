@@ -60,14 +60,6 @@ export const mainFlow = addKeyword<BaileysProvider, MemoryDB>([
           // Pedir taxi - redirigir al flujo de taxi
           return gotoFlow(taxiFlow);
 
-        case "2":
-          // Soporte - redirigir al flujo de soporte
-          return gotoFlow(supportFlow);
-
-        case "3":
-          // Información - redirigir al flujo de información
-          return gotoFlow(infoFlow);
-
         default:
           return fallBack(MESSAGES.VALIDATION.INVALID_OPTION);
       }
@@ -94,63 +86,7 @@ export const quickTaxiFlow = addKeyword<BaileysProvider, MemoryDB>([
   return gotoFlow(taxiFlow);
 });
 
-export const supportFlow = addKeyword<BaileysProvider, MemoryDB>(
-  utils.setEvent("SUPPORT_FLOW")
-).addAnswer(
-  MESSAGES.SUPPORT.MENU,
-  {
-    capture: true,
-    delay: 500,
-  },
-  async (ctx, { gotoFlow, fallBack, flowDynamic, state }) => {
-    const option = ctx.body.trim();
 
-    // Verificar si el usuario ya está esperando una respuesta de conductor
-    const isWaiting = state.get("isWaitingForDriver");
-    
-    if (isWaiting) {
-      return fallBack("⏳ Estás esperando respuesta de los conductores. Puedes escribir 'cancelar' para cancelar tu solicitud.");
-    }
-
-    const validation = ValidationUtils.validateSupportOption(option);
-
-    if (!validation.isValid) {
-      return fallBack(MESSAGES.VALIDATION.INVALID_OPTION);
-    }
-
-    switch (option) {
-      case "1":
-        await flowDynamic(
-          "🚕 Describe tu problema con la carrera y te ayudaremos lo antes posible."
-        );
-        await flowDynamic(
-          "También puedes contactar directamente: +57 300 123 4567"
-        );
-        break;
-
-      case "2":
-        await flowDynamic(MESSAGES.SUPPORT.OPERATOR_CONTACT);
-        break;
-
-      case "3":
-        await flowDynamic(MESSAGES.SUPPORT.FAQ);
-        break;
-    }
-
-    // Después de manejar soporte, mostrar opción de volver al menú
-    setTimeout(async () => {
-      await flowDynamic("\n💡 Escribe *menu* para volver al menú principal");
-    }, 2000);
-  }
-);
-
-export const infoFlow = addKeyword<BaileysProvider, MemoryDB>(
-  utils.setEvent("INFO_FLOW")
-)
-  .addAnswer(MESSAGES.INFO.COOPERATIVE, { delay: 500 })
-  .addAnswer("💡 Escribe *menu* para volver al menú principal", {
-    delay: 1000,
-  });
 
 // Flujo modificado que ahora muestra el menú automáticamente
 export const fallbackFlow = addKeyword<BaileysProvider, MemoryDB>([
@@ -224,14 +160,6 @@ export const welcomeFlow = addKeyword<BaileysProvider, MemoryDB>(
         case "1":
           // Pedir taxi - redirigir al flujo de taxi
           return gotoFlow(taxiFlow);
-
-        case "2":
-          // Soporte - redirigir al flujo de soporte
-          return gotoFlow(supportFlow);
-
-        case "3":
-          // Información - redirigir al flujo de información
-          return gotoFlow(infoFlow);
 
         default:
           return fallBack(MESSAGES.VALIDATION.INVALID_OPTION);

@@ -18,8 +18,6 @@ import { NotificationService } from "./services/notification.service.js";
 import {
   mainFlow,
   quickTaxiFlow,
-  supportFlow,
-  infoFlow,
   fallbackFlow,
   goodbyeFlow,
   welcomeFlow,
@@ -95,8 +93,6 @@ const main = async () => {
       // Flujos principales
       mainFlow,
       quickTaxiFlow,
-      supportFlow,
-      infoFlow,
 
       // Flujos de taxi
       taxiLocationFlow, // IMPORTANTE: Debe ir antes de taxiFlow para capturar ubicaciones

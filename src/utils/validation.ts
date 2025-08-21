@@ -123,12 +123,12 @@ export class ValidationUtils {
   }
 
   static validateMenuOption(option: string): ValidationResult {
-    const validOptions = ["1", "2", "3"];
+    const validOptions = ["1"];
 
     if (!validOptions.includes(option.trim())) {
       return {
         isValid: false,
-        error: "Por favor selecciona una opción válida (1, 2 o 3)",
+        error: "Por favor selecciona la opción 1 para pedir un taxi",
       };
     }
 

@@ -1,9 +1,7 @@
 export const MESSAGES = {
   GREETING: "¡Hola! Bienvenido a Taxi Cooperativa 🚕",
   MENU: `Selecciona una opción:
-1️⃣ Pedir un taxi
-2️⃣ Soporte
-3️⃣ Información de la cooperativa`,
+1️⃣ Pedir un taxi`,
   
   TAXI: {
     ASK_NAME: "Por favor, dime tu nombre:",
@@ -55,7 +53,7 @@ export const MESSAGES = {
   },
   
   VALIDATION: {
-    INVALID_OPTION: "Por favor selecciona una opción válida (1, 2 o 3)",
+    INVALID_OPTION: "Por favor selecciona la opción 1 para pedir un taxi",
     EMPTY_NAME: "Por favor ingresa tu nombre",
     EMPTY_LOCATION: "Por favor ingresa tu ubicación",
     DRIVER_NOT_FOUND: "No estás registrado como conductor de la cooperativa",
