@@ -5,6 +5,7 @@ import { MESSAGES } from "../constants/messages.js";
 import { ValidationUtils } from "../utils/validation.js";
 import { RequestService } from "../services/request.service.js";
 import { NotificationService } from "../services/notification.service.js";
+import { DriverService } from "../services/driver.service.js";
 import { LocationData, RequestStatus } from "~/types/index.js";
 
 // Flujo especial para limpiar estado cuando se asigna taxi
@@ -199,6 +200,7 @@ export const taxiLocationFlow = addKeyword<BaileysProvider, MemoryDB>(
 // Servicios globales (se inicializarán en app.ts)
 let requestService: RequestService;
 let notificationService: NotificationService;
+let driverService: DriverService;
 
 // Función helper para procesar datos de ubicación
 async function processLocationData(
@@ -331,10 +333,12 @@ async function processLocationData(
 
 export const setTaxiFlowServices = (
   reqService: RequestService,
-  notifService: NotificationService
+  notifService: NotificationService,
+  drvService: DriverService
 ) => {
   requestService = reqService;
   notificationService = notifService;
+  driverService = drvService;
 };
 
 export const taxiFlow = addKeyword<BaileysProvider, MemoryDB>(
@@ -457,8 +461,33 @@ export const cancelRequestFlow = addKeyword<BaileysProvider, MemoryDB>([
   "cancelar",
   "cancel",
   "2",
-]).addAnswer(
-  "🤔 ¿Estás seguro de que quieres cancelar tu solicitud de taxi?\n\n1️⃣ Sí, cancelar\n2️⃣ No, mantener solicitud",
+]).addAction(async (ctx, { flowDynamic, endFlow }) => {
+  try {
+    const userPhone = ctx.from;
+    
+    console.log(`📞 CancelRequestFlow triggered by: ${userPhone} with message: "${ctx.body}"`);
+    
+    // Verificar si el usuario es un conductor registrado
+    console.log("🔍 CancelRequestFlow: Checking if user is a registered driver...");
+    const driverResult = await driverService.getDriverByPhone(userPhone);
+    
+    if (driverResult.success && driverResult.data) {
+      // Es un conductor registrado - mostrar mensaje personalizado y terminar
+      console.log(`✅ CancelRequestFlow: Driver found: ${driverResult.data.name} (${driverResult.data.phone})`);
+      return endFlow(MESSAGES.DRIVER_WELCOME);
+    }
+    
+    // No es conductor - continuar con lógica normal de cancelación
+    console.log("👤 CancelRequestFlow: User is not a driver, proceeding with cancellation flow");
+    await flowDynamic("🤔 ¿Estás seguro de que quieres cancelar tu solicitud de taxi?\n\n1️⃣ Sí, cancelar\n2️⃣ No, mantener solicitud");
+  } catch (error) {
+    console.error("Error in cancelRequestFlow driver check:", error);
+    // En caso de error, continuar con flujo normal
+    await flowDynamic("🤔 ¿Estás seguro de que quieres cancelar tu solicitud de taxi?\n\n1️⃣ Sí, cancelar\n2️⃣ No, mantener solicitud");
+  }
+})
+.addAnswer(
+  "",
   {
     capture: true,
     delay: 500,

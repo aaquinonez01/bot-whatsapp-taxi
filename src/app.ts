@@ -71,7 +71,7 @@ const main = async () => {
     console.log("✅ Servicios inicializados");
 
     // Configurar servicios en flujos
-    setTaxiFlowServices(requestService, notificationService);
+    setTaxiFlowServices(requestService, notificationService, driverService);
     setDriverFlowServices(driverService, requestService, notificationService);
     setMainFlowServices(driverService);
     console.log("✅ Servicios configurados en flujos");
