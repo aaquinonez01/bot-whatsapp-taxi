@@ -181,7 +181,7 @@ export const taxiLocationFlow = addKeyword<BaileysProvider, MemoryDB>([
       await flowDynamic(`📍 Dirección: ${address}`);
     }
 
-    // 🆕 NUEVO: Detectar sector automáticamente usando Mapbox
+    // 🆕 NUEVO: Detectar sector automáticamente usando Google Maps
     let detectedSector = "Ubicación GPS"; // Fallback por defecto
 
     try {
@@ -622,7 +622,7 @@ export const taxiFlow = addKeyword<BaileysProvider, MemoryDB>(
             await flowDynamic(`📍 Dirección: ${address}`);
           }
 
-          // 🆕 GEOCODIFICACIÓN AUTOMÁTICA CON MAPBOX
+          // 🆕 GEOCODIFICACIÓN AUTOMÁTICA CON GOOGLE MAPS
           let detectedSector = "Ubicación GPS";
 
           try {

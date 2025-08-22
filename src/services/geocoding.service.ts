@@ -1,22 +1,33 @@
 import { ServiceResponse } from "../types/index.js";
 
 export interface GeocodingResult {
-  neighborhood?: string;
-  district?: string;
-  place?: string;
-  formatted: string;
+  formatted: string; // "Calle, Barrio, Sector" todo en un string
+}
+
+interface GoogleMapsComponent {
+  long_name: string;
+  short_name: string;
+  types: string[];
+}
+
+interface GoogleMapsResponse {
+  results: Array<{
+    address_components: GoogleMapsComponent[];
+    formatted_address: string;
+  }>;
+  status: string;
 }
 
 export class GeocodingService {
-  private mapboxToken: string;
-  private baseUrl = 'https://api.mapbox.com/search/geocode/v6/reverse';
+  private apiKey: string;
+  private baseUrl = 'https://maps.googleapis.com/maps/api/geocode/json';
 
-  constructor(mapboxToken: string) {
-    this.mapboxToken = mapboxToken;
+  constructor(apiKey: string) {
+    this.apiKey = apiKey;
   }
 
   /**
-   * Obtiene el sector/barrio usando coordenadas GPS
+   * Obtiene información detallada de ubicación usando coordenadas GPS
    */
   async getNeighborhoodFromCoordinates(
     latitude: number,
@@ -31,15 +42,15 @@ export class GeocodingService {
         };
       }
 
-      // Hacer petición a Mapbox
-      const mapboxResponse = await this.makeMapboxRequest(latitude, longitude);
+      // Hacer petición a Google Maps
+      const googleResponse = await this.makeGoogleMapsRequest(latitude, longitude);
       
-      if (!mapboxResponse.success) {
-        return mapboxResponse;
+      if (!googleResponse.success) {
+        return googleResponse;
       }
 
-      // Extraer información del barrio/sector
-      const geocodingResult = this.extractLocationInfo(mapboxResponse.data);
+      // Extraer información detallada de ubicación
+      const geocodingResult = this.extractLocationInfo(googleResponse.data);
       
       return {
         success: true,
@@ -57,39 +68,50 @@ export class GeocodingService {
   }
 
   /**
-   * Realiza la petición HTTP a Mapbox
+   * Realiza la petición HTTP a Google Maps Geocoding API
    */
-  private async makeMapboxRequest(
+  private async makeGoogleMapsRequest(
     latitude: number,
     longitude: number
-  ): Promise<ServiceResponse<any>> {
+  ): Promise<ServiceResponse<GoogleMapsResponse>> {
     try {
-      const url = `${this.baseUrl}?longitude=${longitude}&latitude=${latitude}&access_token=${this.mapboxToken}`;
+      const url = `${this.baseUrl}?latlng=${latitude},${longitude}&key=${this.apiKey}&language=es&region=ec`;
       
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
       
       const response = await fetch(url, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         signal: controller.signal
       });
-      
       clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error(`❌ Mapbox API error: ${response.status} - ${errorText}`);
+        console.error(`❌ Google Maps API error: ${response.status} - ${errorText}`);
         
         return {
           success: false,
-          error: `Error de API Mapbox: ${response.status}`
+          error: `Error de API Google Maps: ${response.status}`
         };
       }
 
-      const data = await response.json();
+      const data = await response.json() as GoogleMapsResponse;
+      
+      // 🔍 RESPUESTA COMPLETA DE GOOGLE MAPS API 
+      console.log("🔍 ===== RESPUESTA COMPLETA DE GOOGLE MAPS API =====");
+      console.log(JSON.stringify(data, null, 2));
+      console.log("🔍 ===== FIN RESPUESTA GOOGLE MAPS API =====");
+      
+      if (data.status !== 'OK') {
+        console.error(`❌ Google Maps API status: ${data.status}`);
+        return {
+          success: false,
+          error: `Error de Google Maps: ${data.status}`
+        };
+      }
+      
+      console.log(`✅ Google Maps response: ${data.results.length} resultados`);
       
       return {
         success: true,
@@ -97,62 +119,140 @@ export class GeocodingService {
       };
 
     } catch (error) {
-      if (error.name === 'AbortError') {
+      console.error("🚨 CATCH activado en makeGoogleMapsRequest");
+      console.error("🚨 Error name:", error?.name);
+      console.error("🚨 Error message:", error?.message);
+      console.error("🚨 Error stack:", error?.stack);
+      
+      if (error?.name === 'AbortError') {
+        console.error("⏰ Request abortado por timeout");
         return {
           success: false,
-          error: "Timeout en solicitud a Mapbox"
+          error: "Timeout en solicitud a Google Maps"
         };
       }
       
-      console.error("❌ Network error calling Mapbox:", error);
+      console.error("❌ Network/Other error calling Google Maps:", error);
       return {
         success: false,
-        error: "Error de conexión con Mapbox"
+        error: "Error de conexión con Google Maps"
       };
     }
   }
 
   /**
-   * Extrae información de barrio/sector de la respuesta de Mapbox
+   * Extrae información detallada de ubicación de la respuesta de Google Maps
+   * Formato: "Calle Principal, Barrio, Sector"
    */
-  private extractLocationInfo(mapboxResponse: any): GeocodingResult {
+  private extractLocationInfo(googleResponse: GoogleMapsResponse): GeocodingResult {
     try {
-      const features = mapboxResponse.features;
+      console.log("🔍 ===== INICIANDO EXTRACCIÓN DE UBICACIÓN =====");
       
-      if (!features || !Array.isArray(features) || features.length === 0) {
+      if (!googleResponse.results || googleResponse.results.length === 0) {
+        console.log("❌ No hay resultados en la respuesta");
         return {
           formatted: "Ubicación GPS"
         };
       }
 
-      // Buscar simplemente el nombre de la calle
-      for (const feature of features) {
-        const properties = feature.properties || {};
-        const context = properties.context || {};
+      console.log(`🔍 Buscando en ${googleResponse.results.length} resultados de Google Maps`);
+
+      // Buscar en todos los resultados hasta encontrar uno con información de calle
+      let bestResult = null;
+      let bestComponents = null;
+
+      for (let i = 0; i < googleResponse.results.length; i++) {
+        const result = googleResponse.results[i];
+        const components = result.address_components;
         
-        // Buscar simplemente street o address
-        const street = context.street?.name;
-        const address = context.address?.name;
+        if (!components || components.length === 0) continue;
         
-        // Si encuentra una calle, la devuelve
-        if (street) {
-          return {
-            formatted: street
-          };
-        }
-        
-        if (address) {
-          return {
-            formatted: address
-          };
+        // Verificar si este resultado tiene información de calle
+        const hasStreetInfo = components.some(comp => 
+          comp.types.includes("street_number") || 
+          comp.types.includes("route") ||
+          comp.types.includes("neighborhood") ||
+          comp.types.includes("sublocality")
+        );
+
+        console.log(`🔍 Resultado ${i + 1}: ${hasStreetInfo ? '✅ Tiene info de calle' : '❌ Sin info de calle'}`);
+        console.log(`🔍 Dirección formateada: ${result.formatted_address}`);
+
+        if (hasStreetInfo && !bestResult) {
+          bestResult = result;
+          bestComponents = components;
+          console.log(`✅ Usando resultado ${i + 1} como el mejor`);
+          break;
         }
       }
 
+      // Si no encontramos un resultado con información de calle, usar el primero
+      if (!bestResult) {
+        console.log("⚠️ No se encontró resultado con información de calle, usando el primero");
+        bestResult = googleResponse.results[0];
+        bestComponents = bestResult.address_components;
+      }
+
+      console.log("🔍 Resultado seleccionado:", JSON.stringify(bestResult, null, 2));
+      console.log(`🔍 Procesando ${bestComponents.length} componentes del resultado seleccionado`);
+      console.log("🔍 Componentes completos:", JSON.stringify(bestComponents, null, 2));
+
+      // Extraer componentes específicos
+      let streetNumber = "";
+      let route = "";
+      let neighborhood = "";
+      let sublocality = "";
+      let sublocalityLevel1 = "";
+      let locality = "";
+      let administrativeLevel2 = "";
+
+      for (const component of bestComponents) {
+        const types = component.types;
+        
+        if (types.includes("street_number")) {
+          streetNumber = component.long_name;
+        } else if (types.includes("route")) {
+          route = component.long_name;
+        } else if (types.includes("neighborhood")) {
+          neighborhood = component.long_name;
+        } else if (types.includes("sublocality_level_1")) {
+          sublocalityLevel1 = component.long_name;
+        } else if (types.includes("sublocality")) {
+          sublocality = component.long_name;
+        } else if (types.includes("locality")) {
+          locality = component.long_name;
+        } else if (types.includes("administrative_area_level_2")) {
+          administrativeLevel2 = component.long_name;
+        }
+      }
+
+      // Construir calle principal
+      const mainStreet = `${streetNumber} ${route}`.trim();
+      
+      // Priorizar barrio: neighborhood > sublocality_level_1 > sublocality
+      const barrio = neighborhood || sublocalityLevel1 || sublocality || "";
+      
+      // Usar locality como sector más amplio, con fallback a administrative_area_level_2
+      const sector = locality || administrativeLevel2 || "Sector";
+
+      console.log(`🏠 Componentes extraídos: calle="${mainStreet}", barrio="${barrio}", sector="${sector}"`);
+
+      // Formar string final: "Calle, Barrio, Sector"
+      const parts = [];
+      if (mainStreet) parts.push(mainStreet);
+      if (barrio) parts.push(barrio);
+      if (sector && sector !== "Sector") parts.push(sector);
+
+      const formatted = parts.length > 0 ? parts.join(", ") : "Ubicación GPS";
+      
+      console.log(`✅ Resultado final: "${formatted}"`);
+
       return {
-        formatted: "Ubicación GPS"
+        formatted: formatted
       };
 
     } catch (error) {
+      console.error("❌ Error extrayendo información de ubicación:", error);
       return {
         formatted: "Ubicación GPS"
       };
@@ -176,7 +276,8 @@ export class GeocodingService {
   }
 
   /**
-   * Método helper para obtener solo el sector como string
+   * Método helper para obtener información de ubicación completa como string
+   * Formato: "Calle Principal, Barrio, Sector"
    */
   async getSectorFromCoordinates(
     latitude: number,
@@ -192,6 +293,7 @@ export class GeocodingService {
       return "Ubicación GPS";
       
     } catch (error) {
+      console.error("❌ Error obteniendo sector:", error);
       return "Ubicación GPS";
     }
   }

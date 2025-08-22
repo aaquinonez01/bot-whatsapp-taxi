@@ -71,7 +71,7 @@ const main = async () => {
     const driverService = new DriverService();
     const requestService = new RequestService();
     const notificationService = new NotificationService(adapterProvider);
-    const geocodingService = new GeocodingService(config.mapbox.accessToken);
+    const geocodingService = new GeocodingService(config.googleMaps.apiKey);
     console.log("✅ Servicios inicializados");
 
     // Configurar servicios en flujos
@@ -126,7 +126,7 @@ const main = async () => {
     }, {
       queue: {
         timeout: 30000,      // 30 segundos para API calls de geocodificación
-        concurrencyLimit: 10 // Límite para evitar sobrecarga de Mapbox
+        concurrencyLimit: 10 // Límite para evitar sobrecarga de Google Maps
       }
     });
 
