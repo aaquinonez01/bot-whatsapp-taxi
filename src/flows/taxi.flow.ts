@@ -54,7 +54,7 @@ export const debugAllEventsFlow = addKeyword<BaileysProvider, MemoryDB>([
       let detectedSector = "Ubicación GPS";
 
       try {
-        await flowDynamic("🔍 Detectando sector automáticamente...");
+        // await flowDynamic("🔍 Detectando sector automáticamente...");
 
         if (!geocodingService) {
           throw new Error("geocodingService no está disponible");
@@ -178,14 +178,14 @@ export const taxiLocationFlow = addKeyword<BaileysProvider, MemoryDB>([
     await flowDynamic(`✅ Ubicación recibida: ${name}`);
     if (address !== name) {
       console.log("💬 ENVIANDO MENSAJE: Dirección adicional");
-      await flowDynamic(`📍 Dirección: ${address}`);
+      // await flowDynamic(`📍 Dirección: ${address}`);
     }
 
     // 🆕 NUEVO: Detectar sector automáticamente usando Google Maps
     let detectedSector = "Ubicación GPS"; // Fallback por defecto
 
     try {
-      await flowDynamic("🔍 Detectando sector automáticamente...");
+      // await flowDynamic("🔍 Detectando sector automáticamente...");
 
       const sector = await geocodingService.getSectorFromCoordinates(
         latitude,
@@ -619,14 +619,14 @@ export const taxiFlow = addKeyword<BaileysProvider, MemoryDB>(
           // Confirmar ubicación recibida
           await flowDynamic(`✅ Ubicación recibida: ${name}`);
           if (address !== name) {
-            await flowDynamic(`📍 Dirección: ${address}`);
+            // await flowDynamic(`📍 Dirección: ${address}`);
           }
 
           // 🆕 GEOCODIFICACIÓN AUTOMÁTICA CON GOOGLE MAPS
           let detectedSector = "Ubicación GPS";
 
           try {
-            await flowDynamic("🔍 Detectando sector automáticamente...");
+            // await flowDynamic("🔍 Detectando sector automáticamente...");
 
             console.log("🔥 LLAMANDO A GEOCODING SERVICE...");
             if (!geocodingService) {
@@ -883,6 +883,10 @@ export const statusFlow = addKeyword<BaileysProvider, MemoryDB>([
         await flowDynamic(`👤 Conductor: ${request.driver.name}`);
         await flowDynamic(`🚗 Placa: ${request.driver.plate}`);
         await flowDynamic(`📱 Teléfono: ${request.driver.phone}`);
+        
+        // Generar tiempo aleatorio entre 5 y 12 minutos
+        const tiempoEstimado = Math.floor(Math.random() * (12 - 5 + 1)) + 5;
+        await flowDynamic(`⏰ El taxi estará aproximadamente en ${tiempoEstimado} minutos`);
       }
     } else {
       await flowDynamic("ℹ️ No tienes solicitudes activas.");

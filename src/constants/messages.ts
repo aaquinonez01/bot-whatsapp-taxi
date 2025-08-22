@@ -1,6 +1,16 @@
 export const MESSAGES = {
   GREETING: "¡Hola! Bienvenido a Taxi Cooperativa 🚕",
-  DRIVER_WELCOME: "Hola conductor, Espero que tenga un buen día, estaré pendiente de todas las solicitudes de los clientes.",
+  DRIVER_WELCOME: `Hola conductor! 👋
+
+Espero que tengas un buen día. Estaré pendiente de todas las solicitudes de los clientes.
+
+💡 Comandos rápidos:
+• Escribe "a" o "A" para activarte y recibir carreras
+• Escribe "d" o "D" para desactivarte y no recibir notificaciones
+
+🚕 Para aceptar carreras: Presiona "1" cuando lleguen solicitudes.
+
+❓ Escribe "ayuda" para ver todos los comandos disponibles.`,
   MENU: `Selecciona una opción:
 1️⃣ Pedir un taxi`,
   
@@ -34,6 +44,20 @@ export const MESSAGES = {
 1️⃣ Problema con mi carrera
 2️⃣ Hablar con operador
 3️⃣ Preguntas frecuentes`,
+    
+    DRIVER_HELP: `🚕 Comandos para Conductores:
+
+💡 Comandos rápidos:
+• "a" o "A" - Activarte para recibir carreras
+• "d" o "D" - Desactivarte para no recibir notificaciones
+
+📋 Comandos principales:
+• "1" - Aceptar carrera disponible
+• "ubicacion" - Actualizar tu ubicación
+• "mi info" - Ver tu información
+• "registrar conductor" - Registrar nuevo conductor
+
+❓ Para más ayuda, contacta al administrador.`,
     
     OPERATOR_CONTACT: "👥 Un operador se comunicará contigo pronto. Nuestro número directo es: +57 300 123 4567",
     

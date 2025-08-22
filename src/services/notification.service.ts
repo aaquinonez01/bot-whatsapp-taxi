@@ -133,9 +133,13 @@ export class NotificationService {
         request.clientPhone
       );
 
+      // Generar tiempo aleatorio entre 5 y 12 minutos
+      const tiempoEstimado = Math.floor(Math.random() * (12 - 5 + 1)) + 5;
+      
       const message =
         "¡Taxi asignado!\n\n" +
         MESSAGES.TAXI.CLIENT_ASSIGNED(driver.name, driver.plate, driver.phone) +
+        `\n\n⏰ El taxi estará aproximadamente en ${tiempoEstimado} minutos` +
         "\n\n✅ Tu solicitud ha sido procesada exitosamente.";
 
       // Enviar presencia de "typing" antes del mensaje
