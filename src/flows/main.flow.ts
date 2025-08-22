@@ -5,6 +5,7 @@ import { MESSAGES } from "../constants/messages.js";
 import { ValidationUtils } from "../utils/validation.js";
 import { DriverService } from "../services/driver.service.js";
 import { taxiFlow } from "./taxi.flow.js";
+import * as IdleCustom from "../utils/idle-custom.js";
 
 // Servicios globales (se inicializarán en app.ts)
 let driverService: DriverService;
@@ -30,7 +31,15 @@ export const mainFlow = addKeyword<BaileysProvider, MemoryDB>([
     
     console.log(`📞 MainFlow triggered by: ${userPhone} with message: "${ctx.body}"`);
     
-    // Verificar si había un timeout previo y limpiar
+    // Verificar si el usuario tiene timeout expirado y limpiar
+    if (IdleCustom.isExpired(ctx)) {
+      const wasExpired = await IdleCustom.cleanExpiredUser(ctx, state);
+      if (wasExpired) {
+        console.log(`🧹 Usuario expirado limpiado en mainFlow: ${userPhone}`);
+      }
+    }
+    
+    // Verificar si había un timeout previo y limpiar (compatibilidad con sistema anterior)
     const hadTimeout = state.get("hadTimeout");
     if (hadTimeout) {
       await state.clear();

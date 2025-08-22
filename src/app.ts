@@ -34,6 +34,7 @@ import {
   statusFlow,
   completeRideFlow,
   checkTimeoutFlow,
+  idleFlow,
   setTaxiFlowServices,
 } from "./flows/taxi.flow.js";
 
@@ -87,6 +88,7 @@ const main = async () => {
       // Flujos críticos que deben tener máxima prioridad
       welcomeFlow,
       taxiAssignedFlow, // CRÍTICO: Limpiar estado cuando se asigna taxi
+      idleFlow, // CRÍTICO: Manejar timeout de inactividad de usuarios
 
       // Flujos de conductores - MÁXIMA PRIORIDAD para aceptar carreras
       driverAcceptFlow, // CRÍTICO: Debe ir ANTES que postTimeoutFlow y todos los demás

@@ -8,6 +8,7 @@ import { NotificationService } from "../services/notification.service.js";
 import { DriverService } from "../services/driver.service.js";
 import { GeocodingService } from "../services/geocoding.service.js";
 import { LocationData, RequestStatus } from "~/types/index.js";
+import * as IdleCustom from "../utils/idle-custom.js";
 
 // Flujo especial para limpiar estado cuando se asigna taxi
 export const taxiAssignedFlow = addKeyword<BaileysProvider, MemoryDB>([
@@ -489,9 +490,18 @@ async function processLocationData(
 
     // Guardar el timeout ID en el estado
     await state.update({ timeoutId: timeoutId });
+
+    // Detener el timer de inactividad ya que el proceso se completó exitosamente
+    IdleCustom.stop(ctx);
+    console.log(
+      `⏹️ Timer de inactividad detenido para usuario ${ctx.from} - solicitud creada exitosamente`
+    );
   } catch (error) {
     console.error("Error in processLocationData:", error);
     await flowDynamic(MESSAGES.ERRORS.SYSTEM_ERROR);
+
+    // En caso de error, también detener el timer
+    IdleCustom.stop(ctx);
   }
 }
 
@@ -510,13 +520,46 @@ export const setTaxiFlowServices = (
 export const taxiFlow = addKeyword<BaileysProvider, MemoryDB>(
   utils.setEvent("TAXI_FLOW")
 )
+  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+    // Verificar si el usuario ya expiró antes de continuar
+    if (IdleCustom.isExpired(ctx)) {
+      const wasExpired = await IdleCustom.cleanExpiredUser(ctx, state);
+      if (wasExpired) {
+        await flowDynamic(
+          "⏰ Tu sesión anterior expiró por inactividad. Iniciando proceso nuevo..."
+        );
+        await flowDynamic([MESSAGES.GREETING, MESSAGES.MENU].join("\n\n"));
+        // Importar y redirigir al mainFlow para reiniciar completamente
+        const { mainFlow } = await import("./main.flow.js");
+        return gotoFlow(mainFlow);
+      }
+    }
+
+    // Iniciar timer global de 5 minutos cuando comienza el flujo de taxi
+    IdleCustom.start(ctx, 300000); // 5 minutos = 300000ms
+  })
   .addAnswer(
     MESSAGES.TAXI.ASK_NAME,
     {
       capture: true,
       delay: 500,
     },
-    async (ctx, { fallBack, flowDynamic, state }) => {
+    async (ctx, { fallBack, flowDynamic, state, gotoFlow }) => {
+      // Verificar si el usuario expiró mientras esperaba
+      if (IdleCustom.isExpired(ctx)) {
+        const wasExpired = await IdleCustom.cleanExpiredUser(ctx, state);
+        if (wasExpired) {
+          await flowDynamic(
+            "⏰ Tu sesión expiró por inactividad (5+ minutos sin respuesta)."
+          );
+          await flowDynamic("Para tu comodidad, hemos reiniciado el proceso.");
+          await flowDynamic([MESSAGES.GREETING, MESSAGES.MENU].join("\n\n"));
+          // Importar y redirigir al mainFlow para reiniciar completamente
+          const { mainFlow } = await import("./main.flow.js");
+          return gotoFlow(mainFlow);
+        }
+      }
+
       const name = ctx.body.trim();
 
       // Validar nombre
@@ -534,7 +577,22 @@ export const taxiFlow = addKeyword<BaileysProvider, MemoryDB>(
   )
   .addAction(
     { capture: true },
-    async (ctx, { fallBack, flowDynamic, state }) => {
+    async (ctx, { fallBack, flowDynamic, state, gotoFlow }) => {
+      // Verificar si el usuario expiró mientras esperaba la ubicación
+      if (IdleCustom.isExpired(ctx)) {
+        const wasExpired = await IdleCustom.cleanExpiredUser(ctx, state);
+        if (wasExpired) {
+          await flowDynamic(
+            "⏰ Tu sesión expiró por inactividad (5+ minutos sin respuesta)."
+          );
+          await flowDynamic("Para tu comodidad, hemos reiniciado el proceso.");
+          await flowDynamic([MESSAGES.GREETING, MESSAGES.MENU].join("\n\n"));
+          // Importar y redirigir al mainFlow para reiniciar completamente
+          const { mainFlow } = await import("./main.flow.js");
+          return gotoFlow(mainFlow);
+        }
+      }
+
       const location = ctx.body.trim();
       // Detectar si es un evento de ubicación de WhatsApp
       if (location.includes("event_location_")) {
@@ -903,4 +961,18 @@ export const completeRideFlow = addKeyword<BaileysProvider, MemoryDB>([
     console.error("Error completing ride:", error);
     await flowDynamic(MESSAGES.ERRORS.SYSTEM_ERROR);
   }
+});
+
+// Flujo simplificado - no necesario con el nuevo sistema de timeout global
+// El timeout se maneja ahora directamente en cada verificación de flows
+export const idleFlow = addKeyword<BaileysProvider, MemoryDB>(
+  "__idle_placeholder__"
+).addAction(async (ctx, { flowDynamic, endFlow }) => {
+  // Este flow ya no se usa directamente, el timeout se maneja en cada flow
+  console.log(
+    `ℹ️ idleFlow llamado para ${ctx.from} - redirigiendo a menú principal`
+  );
+  await flowDynamic([MESSAGES.GREETING, MESSAGES.MENU].join("\n\n"));
+  // eslint-disable-next-line builderbot/func-prefix-endflow-flowdynamic
+  return endFlow();
 });
