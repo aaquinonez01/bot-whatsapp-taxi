@@ -157,9 +157,10 @@ export class GeocodingService {
 
       console.log(`🔍 Buscando en ${googleResponse.results.length} resultados de Google Maps`);
 
-      // Buscar en todos los resultados hasta encontrar uno con información de calle
+      // Buscar en todos los resultados y clasificarlos por calidad
       let bestResult = null;
       let bestComponents = null;
+      let bestScore = -1;
 
       for (let i = 0; i < googleResponse.results.length; i++) {
         const result = googleResponse.results[i];
@@ -167,22 +168,52 @@ export class GeocodingService {
         
         if (!components || components.length === 0) continue;
         
-        // Verificar si este resultado tiene información de calle
-        const hasStreetInfo = components.some(comp => 
-          comp.types.includes("street_number") || 
-          comp.types.includes("route") ||
-          comp.types.includes("neighborhood") ||
-          comp.types.includes("sublocality")
-        );
+        // Calcular puntuación de calidad del resultado
+        let score = 0;
+        let hasStreetNumber = false;
+        let hasRoute = false;
+        let hasNeighborhood = false;
+        let hasLocality = false;
+        
+        for (const comp of components) {
+          if (comp.types.includes("street_number")) { score += 10; hasStreetNumber = true; }
+          if (comp.types.includes("route")) { score += 8; hasRoute = true; }
+          if (comp.types.includes("neighborhood")) { score += 6; hasNeighborhood = true; }
+          if (comp.types.includes("sublocality_level_1")) { score += 5; }
+          if (comp.types.includes("sublocality")) { score += 4; }
+          if (comp.types.includes("locality")) { score += 3; hasLocality = true; }
+          if (comp.types.includes("administrative_area_level_3")) { score += 2; }
+          if (comp.types.includes("administrative_area_level_2")) { score += 1; }
+        }
 
-        console.log(`🔍 Resultado ${i + 1}: ${hasStreetInfo ? '✅ Tiene info de calle' : '❌ Sin info de calle'}`);
-        console.log(`🔍 Dirección formateada: ${result.formatted_address}`);
+        // BONUS: Direcciones con referencias específicas (metros, referencias de lugares)
+        const formattedAddr = result.formatted_address || "";
+        if (formattedAddr.includes("metros") || formattedAddr.includes("referencia") || 
+            formattedAddr.includes("frente a") || formattedAddr.includes("cerca de") ||
+            formattedAddr.includes("al Sur de") || formattedAddr.includes("al Norte de") ||
+            formattedAddr.includes("al Este de") || formattedAddr.includes("al Oeste de")) {
+          score += 25; // BONUS MUY ALTO para direcciones con referencias (era 15, ahora 25)
+          console.log(`   🎯 BONUS +25: Dirección con referencia específica`);
+        }
 
-        if (hasStreetInfo && !bestResult) {
+        // BONUS: Direcciones que mencionan intersecciones (y, &, con)
+        if (formattedAddr.includes(" y ") || formattedAddr.includes(" & ") || formattedAddr.includes(" con ")) {
+          score += 5;
+          console.log(`   🎯 BONUS +5: Dirección con intersección`);
+        }
+
+        const hasStreetInfo = hasStreetNumber || hasRoute || hasNeighborhood || formattedAddr.includes("metros");
+        
+        console.log(`🔍 Resultado ${i + 1} (Score: ${score}): ${hasStreetInfo ? '✅' : '❌'}`);
+        console.log(`   📍 Dirección: ${result.formatted_address}`);
+        console.log(`   🏠 Componentes: Street(${hasStreetNumber}) Route(${hasRoute}) Neighborhood(${hasNeighborhood}) Locality(${hasLocality})`);
+
+        // Seleccionar el resultado con mayor puntuación
+        if (score > bestScore && hasStreetInfo) {
           bestResult = result;
           bestComponents = components;
-          console.log(`✅ Usando resultado ${i + 1} como el mejor`);
-          break;
+          bestScore = score;
+          console.log(`⭐ Nuevo mejor resultado: ${i + 1} con score ${score}`);
         }
       }
 
@@ -205,6 +236,7 @@ export class GeocodingService {
       let sublocalityLevel1 = "";
       let locality = "";
       let administrativeLevel2 = "";
+      let administrativeLevel3 = "";
 
       for (const component of bestComponents) {
         const types = component.types;
@@ -223,27 +255,48 @@ export class GeocodingService {
           locality = component.long_name;
         } else if (types.includes("administrative_area_level_2")) {
           administrativeLevel2 = component.long_name;
+        } else if (types.includes("administrative_area_level_3")) {
+          administrativeLevel3 = component.long_name;
         }
       }
 
       // Construir calle principal
       const mainStreet = `${streetNumber} ${route}`.trim();
       
-      // Priorizar barrio: neighborhood > sublocality_level_1 > sublocality
-      const barrio = neighborhood || sublocalityLevel1 || sublocality || "";
+      // Priorizar barrio: neighborhood > administrative_area_level_3 > sublocality_level_1 > sublocality
+      const barrio = neighborhood || administrativeLevel3 || sublocalityLevel1 || sublocality || "";
       
       // Usar locality como sector más amplio, con fallback a administrative_area_level_2
       const sector = locality || administrativeLevel2 || "Sector";
 
       console.log(`🏠 Componentes extraídos: calle="${mainStreet}", barrio="${barrio}", sector="${sector}"`);
 
-      // Formar string final: "Calle, Barrio, Sector"
-      const parts = [];
-      if (mainStreet) parts.push(mainStreet);
-      if (barrio) parts.push(barrio);
-      if (sector && sector !== "Sector") parts.push(sector);
+      // Verificar si el formatted_address tiene referencias específicas y es mejor
+      const originalFormatted = bestResult.formatted_address || "";
+      const hasReference = originalFormatted.includes("metros") || 
+                          originalFormatted.includes("referencia") || 
+                          originalFormatted.includes("frente a") || 
+                          originalFormatted.includes("cerca de") ||
+                          originalFormatted.includes("al Sur de") || 
+                          originalFormatted.includes("al Norte de") ||
+                          originalFormatted.includes("al Este de") || 
+                          originalFormatted.includes("al Oeste de");
 
-      const formatted = parts.length > 0 ? parts.join(", ") : "Ubicación GPS";
+      let formatted;
+      
+      if (hasReference) {
+        // Usar la dirección formateada original porque tiene referencias específicas
+        formatted = originalFormatted.replace(", Ecuador", ""); // Quitar "Ecuador" del final
+        console.log(`🎯 Usando dirección con referencia: "${formatted}"`);
+      } else {
+        // Formar string desde componentes: "Calle, Barrio, Sector"
+        const parts = [];
+        if (mainStreet) parts.push(mainStreet);
+        if (barrio) parts.push(barrio);
+        if (sector && sector !== "Sector") parts.push(sector);
+        formatted = parts.length > 0 ? parts.join(", ") : "Ubicación GPS";
+        console.log(`🏠 Construyendo desde componentes: "${formatted}"`);
+      }
       
       console.log(`✅ Resultado final: "${formatted}"`);
 
