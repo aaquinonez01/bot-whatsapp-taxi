@@ -25,6 +25,9 @@ export const config = {
     experimentalStore: process.env.EXPERIMENTAL_STORE !== "false",
     timeRelease: parseInt(process.env.TIME_RELEASE || "10800000"), // 3 horas por defecto
   },
+  mapbox: {
+    accessToken: process.env.MAPBOX_ACCESS_TOKEN || "",
+  },
 };
 
 // Validaciones de configuración requerida
@@ -32,6 +35,7 @@ export const validateConfig = () => {
   const requiredVars = [
     { key: "DATABASE_URL", value: config.database.url },
     { key: "WHATSAPP_PHONE", value: config.whatsapp.phoneNumber },
+    { key: "MAPBOX_ACCESS_TOKEN", value: config.mapbox.accessToken },
   ];
 
   const missingVars = requiredVars

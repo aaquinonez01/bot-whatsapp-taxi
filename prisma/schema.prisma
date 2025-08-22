@@ -32,6 +32,7 @@ model TaxiRequest {
   clientName  String
   clientPhone String
   location    String
+  sector      String?       // Sector/barrio detectado automáticamente
   status      RequestStatus @default(PENDING)
   assignedTo  String?       // ID del conductor asignado
   createdAt   DateTime      @default(now())

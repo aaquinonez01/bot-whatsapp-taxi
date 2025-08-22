@@ -41,10 +41,15 @@ export class NotificationService {
         };
       }
 
-      // Preparar mensaje de notificación
+      // Preparar mensaje de notificación usando el sector si está disponible
+      const locationToShow = request.sector || request.location;
+      console.log(`📍 Ubicación que se mostrará al conductor: ${locationToShow}`);
+      console.log(`🔍 request.sector: ${request.sector}`);
+      console.log(`🔍 request.location: ${request.location}`);
+      
       const message = MESSAGES.TAXI.DRIVER_NOTIFICATION(
         request.clientName,
-        request.location,
+        locationToShow,
         request.id
       );
 

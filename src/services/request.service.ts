@@ -54,17 +54,22 @@ export class RequestService {
 
       // Crear solicitud
       const cleanPhone = ValidationUtils.cleanPhoneNumber(data.clientPhone);
+      console.log("💾 CREANDO SOLICITUD CON SECTOR:", data.sector);
+      
       const request = await prisma.taxiRequest.create({
         data: {
           clientName: data.clientName.trim(),
           clientPhone: cleanPhone,
           location: data.location.trim(),
+          sector: data.sector || null, // 🆕 AGREGAR SECTOR
           status: RequestStatus.PENDING,
         },
         include: {
           driver: true,
         },
       });
+      
+      console.log("✅ SOLICITUD CREADA CON SECTOR:", request.sector);
 
       return {
         success: true,

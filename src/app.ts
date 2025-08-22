@@ -13,6 +13,7 @@ import { MESSAGES } from "./constants/messages.js";
 import { DriverService } from "./services/driver.service.js";
 import { RequestService } from "./services/request.service.js";
 import { NotificationService } from "./services/notification.service.js";
+import { GeocodingService } from "./services/geocoding.service.js";
 
 // Flujos
 import {
@@ -27,6 +28,7 @@ import {
 import {
   taxiFlow,
   taxiLocationFlow,
+  debugAllEventsFlow,
   taxiAssignedFlow,
   cancelRequestFlow,
   statusFlow,
@@ -68,16 +70,20 @@ const main = async () => {
     const driverService = new DriverService();
     const requestService = new RequestService();
     const notificationService = new NotificationService(adapterProvider);
+    const geocodingService = new GeocodingService(config.mapbox.accessToken);
     console.log("✅ Servicios inicializados");
 
     // Configurar servicios en flujos
-    setTaxiFlowServices(requestService, notificationService, driverService);
+    setTaxiFlowServices(requestService, notificationService, driverService, geocodingService);
     setDriverFlowServices(driverService, requestService, notificationService);
     setMainFlowServices(driverService);
     console.log("✅ Servicios configurados en flujos");
 
     // Crear flujo principal
     const adapterFlow = createFlow([
+      // DEBUG: Flujo para capturar todos los eventos
+      debugAllEventsFlow, // TEMPORAL: Para debuggear eventos de ubicación
+      
       // Flujos críticos que deben tener máxima prioridad
       welcomeFlow,
       taxiAssignedFlow, // CRÍTICO: Limpiar estado cuando se asigna taxi
@@ -115,6 +121,11 @@ const main = async () => {
       flow: adapterFlow,
       provider: adapterProvider,
       database: adapterDB,
+    }, {
+      queue: {
+        timeout: 30000,      // 30 segundos para API calls de geocodificación
+        concurrencyLimit: 10 // Límite para evitar sobrecarga de Mapbox
+      }
     });
 
     console.log("✅ Bot creado exitosamente");

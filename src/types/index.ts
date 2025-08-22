@@ -24,6 +24,7 @@ export interface TaxiRequest {
   clientName: string
   clientPhone: string
   location: string
+  sector?: string
   locationData?: LocationData
   status: RequestStatus
   assignedTo?: string
@@ -73,6 +74,7 @@ export interface CreateTaxiRequestData {
   clientName: string
   clientPhone: string
   location: string
+  sector?: string
   locationData?: LocationData
 }
 

@@ -6,6 +6,7 @@ import { ValidationUtils } from "../utils/validation.js";
 import { RequestService } from "../services/request.service.js";
 import { NotificationService } from "../services/notification.service.js";
 import { DriverService } from "../services/driver.service.js";
+import { GeocodingService } from "../services/geocoding.service.js";
 import { LocationData, RequestStatus } from "~/types/index.js";
 
 // Flujo especial para limpiar estado cuando se asigna taxi
@@ -23,41 +24,145 @@ export const taxiAssignedFlow = addKeyword<BaileysProvider, MemoryDB>([
 
   // Limpiar completamente el estado del cliente
   await state.clear();
-  console.log(
-    `✅ Estado limpiado para cliente ${ctx.from} después de asignación de taxi`
-  );
 });
 
 // ELIMINADO postTimeoutFlow que causaba conflictos con driverAcceptFlow
 // La lógica de timeout se maneja ahora en welcomeFlow y mainFlow
 
-// Flujo para manejar ubicación de WhatsApp
-export const taxiLocationFlow = addKeyword<BaileysProvider, MemoryDB>(
-  EVENTS.LOCATION
-).addAction(async (ctx, { flowDynamic, state, gotoFlow }) => {
+// Flujo que detecta y procesa ubicaciones GPS directamente
+export const debugAllEventsFlow = addKeyword<BaileysProvider, MemoryDB>([
+  /.*/, // Captura TODO pero con verificación de locationMessage
+]).addAction(async (ctx, { flowDynamic, state }) => {
+  // Verificar si es ubicación GPS PRIMERO
+  const locationMessage = ctx.message?.locationMessage;
+
+  if (locationMessage) {
+    // Verificar si el usuario está esperando ubicación
+    const clientName = state.get("clientName");
+
+    if (clientName) {
+      console.log("🎯 ===== PROCESANDO UBICACIÓN GPS DIRECTAMENTE =====");
+
+      // Procesar la ubicación GPS aquí mismo
+      const latitude = locationMessage.degreesLatitude;
+      const longitude = locationMessage.degreesLongitude;
+      const name = locationMessage.name || "Ubicación compartida";
+      const address = locationMessage.address || `${latitude}, ${longitude}`;
+
+      // Geocodificación automática
+      let detectedSector = "Ubicación GPS";
+
+      try {
+        await flowDynamic("🔍 Detectando sector automáticamente...");
+
+        if (!geocodingService) {
+          throw new Error("geocodingService no está disponible");
+        }
+
+        const sector = await geocodingService.getSectorFromCoordinates(
+          latitude,
+          longitude
+        );
+        detectedSector = sector;
+
+        await flowDynamic(`🏘️ Sector detectado: ${detectedSector}`);
+      } catch (error) {
+        console.error("❌ ERROR EN GEOCODIFICACIÓN:", error);
+        console.error("❌ Error stack:", error.stack);
+        console.error("❌ Error message:", error.message);
+        await flowDynamic("⚠️ No se pudo detectar el sector automáticamente");
+      }
+
+      // Crear solicitud de taxi
+      const locationData = {
+        type: "whatsapp_location",
+        latitude,
+        longitude,
+        name,
+        address,
+        formatted: `${name} - ${address}`,
+      };
+
+      const clientPhone = ctx.from;
+
+      await state.update({
+        clientLocation: locationData.formatted,
+        clientLocationData: locationData,
+        clientPhone: clientPhone,
+      });
+
+      const requestResult = await requestService.createTaxiRequest({
+        clientName,
+        clientPhone,
+        location: locationData.formatted,
+        sector: detectedSector,
+        locationData: locationData as LocationData,
+      });
+
+      if (!requestResult.success) {
+        await flowDynamic(`❌ ${requestResult.error}`);
+        return;
+      }
+
+      const request = requestResult.data!;
+      console.log("✅ SOLICITUD CREADA:", request.id);
+
+      await state.update({
+        requestId: request.id,
+        isWaitingForDriver: true,
+      });
+
+      const notificationResult =
+        await notificationService.sendToAllActiveDrivers(request);
+
+      if (notificationResult.sent === 0) {
+        await flowDynamic("❌ No hay conductores disponibles en este momento");
+        await requestService.cancelRequest(
+          request.id,
+          "No hay conductores disponibles"
+        );
+        await state.clear();
+        return;
+      }
+
+      await flowDynamic(
+        `🔍 Buscando taxi disponible...\n✅ Se notificó a ${notificationResult.sent} conductores disponibles.\n⏳ Esperando respuesta de los conductores (máximo 20 segundos)...`
+      );
+
+      console.log(`✅ UBICACIÓN GPS PROCESADA COMPLETAMENTE: ${request.id}`);
+
+      // Terminar aquí para que no siga a otros flujos
+      return;
+    }
+  }
+
+  // No interferir con otros mensajes normales
+  return;
+});
+
+// Flujo para manejar ubicación de WhatsApp - CAMBIO A REGEX
+export const taxiLocationFlow = addKeyword<BaileysProvider, MemoryDB>([
+  /event_location/i, // Patrón para ubicaciones
+]).addAction(async (ctx, { flowDynamic, state, gotoFlow }) => {
   try {
-    console.log("🗺️ LOCATION FLOW ACTIVATED");
-    console.log("📱 ctx.body:", ctx.body);
-    console.log("📍 ctx.message:", JSON.stringify(ctx.message, null, 2));
+    // Verificar estado completo
+    const fullState = await state.getMyState();
+    console.log("🔍 Estado completo:", JSON.stringify(fullState, null, 2));
 
     // Verificar si el usuario está en proceso de solicitar taxi
     const clientName = state.get("clientName");
-    console.log("👤 clientName from state:", clientName);
 
     if (!clientName) {
-      console.log("❌ No client name in state, ignoring location");
+      console.log("❌ FLUJO DETENIDO: No hay clientName en el estado");
       // Usuario no está en proceso de solicitar taxi, ignorar ubicación
       return;
     }
 
     // Extraer datos de ubicación de WhatsApp
     const locationMessage = ctx.message?.locationMessage;
-    console.log(
-      "📍 locationMessage:",
-      JSON.stringify(locationMessage, null, 2)
-    );
 
     if (!locationMessage) {
+      console.log("❌ FLUJO DETENIDO: No hay locationMessage");
       await flowDynamic(
         "❌ No se pudo procesar la ubicación. Intenta nuevamente."
       );
@@ -69,11 +174,30 @@ export const taxiLocationFlow = addKeyword<BaileysProvider, MemoryDB>(
     const name = locationMessage.name || "Ubicación compartida";
     const address = locationMessage.address || `${latitude}, ${longitude}`;
 
-    // Confirmar ubicación recibida
     await flowDynamic(`✅ Ubicación recibida: ${name}`);
     if (address !== name) {
+      console.log("💬 ENVIANDO MENSAJE: Dirección adicional");
       await flowDynamic(`📍 Dirección: ${address}`);
     }
+
+    // 🆕 NUEVO: Detectar sector automáticamente usando Mapbox
+    let detectedSector = "Ubicación GPS"; // Fallback por defecto
+
+    try {
+      await flowDynamic("🔍 Detectando sector automáticamente...");
+
+      const sector = await geocodingService.getSectorFromCoordinates(
+        latitude,
+        longitude
+      );
+      detectedSector = sector;
+      await flowDynamic(`🏘️ Sector detectado: ${detectedSector}`);
+    } catch (error) {
+      console.error("❌ ERROR EN GEOCODIFICACIÓN:", error);
+      await flowDynamic("⚠️ No se pudo detectar el sector automáticamente");
+    }
+
+    console.log("🎯 GEOCODIFICACIÓN COMPLETADA, CONTINUANDO...");
 
     // Crear formato de ubicación que incluye coordenadas y texto
     const locationData = {
@@ -85,31 +209,46 @@ export const taxiLocationFlow = addKeyword<BaileysProvider, MemoryDB>(
       formatted: `${name} - ${address}`,
     };
 
+    console.log(
+      "📦 LOCATION DATA CREADO:",
+      JSON.stringify(locationData, null, 2)
+    );
+
     // Guardar ubicación en estado
     const clientPhone = ctx.from;
+
     await state.update({
       clientLocation: locationData.formatted,
       clientLocationData: locationData,
       clientPhone: clientPhone,
     });
 
+    console.log("✅ ESTADO ACTUALIZADO CON UBICACIÓN");
+
     try {
-      // Crear solicitud de taxi
+      // Crear solicitud de taxi CON SECTOR AUTOMÁTICO
       const requestResult = await requestService.createTaxiRequest({
         clientName,
         clientPhone,
         location: locationData.formatted,
+        sector: detectedSector, // 🆕 SECTOR AUTOMÁTICO
         locationData: locationData as LocationData,
       });
 
+      console.log(
+        "📊 Resultado de crear solicitud:",
+        JSON.stringify(requestResult, null, 2)
+      );
+
       if (!requestResult.success) {
+        console.log("❌ FALLO AL CREAR SOLICITUD:", requestResult.error);
         await flowDynamic(`❌ ${requestResult.error}`);
         return;
       }
 
       const request = requestResult.data!;
 
-      // Guardar ID de solicitud en estado y marcar como esperando
+      // Guardar ID de solicitud en estado y marcar como esperand
       await state.update({
         requestId: request.id,
         isWaitingForDriver: true,
@@ -119,7 +258,13 @@ export const taxiLocationFlow = addKeyword<BaileysProvider, MemoryDB>(
       const notificationResult =
         await notificationService.sendToAllActiveDrivers(request);
 
+      console.log(
+        "📊 Resultado de notificaciones:",
+        JSON.stringify(notificationResult, null, 2)
+      );
+
       if (notificationResult.sent === 0) {
+        console.log("❌ NO HAY CONDUCTORES DISPONIBLES");
         // No hay conductores disponibles
         await flowDynamic(MESSAGES.TAXI.NO_DRIVERS_AVAILABLE);
 
@@ -134,10 +279,6 @@ export const taxiLocationFlow = addKeyword<BaileysProvider, MemoryDB>(
       // Mensaje combinado: búsqueda, notificación y espera
       await flowDynamic(
         `🔍 Buscando taxi disponible...\n✅ Se notificó a ${notificationResult.sent} conductores disponibles.\n⏳ Esperando respuesta de los conductores (máximo 20 segundos)...`
-      );
-
-      console.log(
-        `Taxi request created: ${request.id} for ${clientName} - Notified ${notificationResult.sent} drivers`
       );
 
       // Configurar timeout de 20 segundos
@@ -195,11 +336,16 @@ export const taxiLocationFlow = addKeyword<BaileysProvider, MemoryDB>(
       // Guardar el timeout ID en el estado
       await state.update({ timeoutId: timeoutId });
     } catch (error) {
-      console.error("Error in taxi location flow:", error);
+      console.error("❌ ERROR EN TAXI LOCATION FLOW (catch interno):", error);
+      console.error("📍 Stack trace:", error.stack);
       await flowDynamic(MESSAGES.ERRORS.SYSTEM_ERROR);
     }
   } catch (error) {
-    console.error("Error processing WhatsApp location:", error);
+    console.error(
+      "❌ ERROR PROCESANDO UBICACIÓN WHATSAPP (catch externo):",
+      error
+    );
+    console.error("📍 Stack trace:", error.stack);
     await flowDynamic(MESSAGES.ERRORS.SYSTEM_ERROR);
   }
 });
@@ -208,21 +354,17 @@ export const taxiLocationFlow = addKeyword<BaileysProvider, MemoryDB>(
 let requestService: RequestService;
 let notificationService: NotificationService;
 let driverService: DriverService;
+let geocodingService: GeocodingService;
 
 // Función helper para procesar datos de ubicación
 async function processLocationData(
   locationData: LocationData,
   ctx: any,
   state: any,
-  flowDynamic: any
+  flowDynamic: any,
+  sector?: string
 ) {
   try {
-    console.log("🔄 PROCESSING LOCATION DATA:");
-    console.log(
-      "📍 LocationData received:",
-      JSON.stringify(locationData, null, 2)
-    );
-
     const clientName = state.get("clientName");
     const clientPhone = ctx.from;
 
@@ -235,20 +377,14 @@ async function processLocationData(
       clientPhone: clientPhone,
     });
 
-    console.log("💾 State updated with location data");
-
-    // Crear solicitud de taxi
+    // Crear solicitud de taxi CON SECTOR
     const requestPayload = {
       clientName,
       clientPhone,
       location: locationData.formatted,
+      sector: sector || "Ubicación GPS", // 🆕 Usar sector detectado
       locationData: locationData,
     };
-
-    console.log(
-      "📤 Creating taxi request with payload:",
-      JSON.stringify(requestPayload, null, 2)
-    );
 
     const requestResult = await requestService.createTaxiRequest(
       requestPayload
@@ -305,10 +441,6 @@ async function processLocationData(
       `🔍 Buscando taxi disponible...\n✅ Se notificó a ${notificationResult.sent} conductores disponibles.\n⏳ Esperando respuesta de los conductores (máximo 20 segundos)...`
     );
 
-    console.log(
-      `Taxi request created: ${request.id} for ${clientName} - Notified ${notificationResult.sent} drivers`
-    );
-
     // Configurar timeout de 20 segundos
     const timeoutId = setTimeout(async () => {
       try {
@@ -349,8 +481,6 @@ async function processLocationData(
                 MESSAGES.MENU
             );
           }
-
-          console.log(`Request ${request.id} timed out after 20 seconds`);
         }
       } catch (error) {
         console.error("Error in timeout handler:", error);
@@ -368,11 +498,13 @@ async function processLocationData(
 export const setTaxiFlowServices = (
   reqService: RequestService,
   notifService: NotificationService,
-  drvService: DriverService
+  drvService: DriverService,
+  geoService: GeocodingService
 ) => {
   requestService = reqService;
   notificationService = notifService;
   driverService = drvService;
+  geocodingService = geoService;
 };
 
 export const taxiFlow = addKeyword<BaileysProvider, MemoryDB>(
@@ -391,13 +523,12 @@ export const taxiFlow = addKeyword<BaileysProvider, MemoryDB>(
       const validation = ValidationUtils.validateName(name);
 
       if (!validation.isValid) {
+        console.log("❌ VALIDACIÓN DE NOMBRE FALLÓ:", validation.error);
         return fallBack(validation.error || MESSAGES.VALIDATION.EMPTY_NAME);
       }
-
       // Guardar nombre en estado
       await state.update({ clientName: name });
 
-      // Continuar al siguiente paso
       await flowDynamic(MESSAGES.TAXI.ASK_LOCATION);
     }
   )
@@ -405,26 +536,11 @@ export const taxiFlow = addKeyword<BaileysProvider, MemoryDB>(
     { capture: true },
     async (ctx, { fallBack, flowDynamic, state }) => {
       const location = ctx.body.trim();
-
-      console.log("📝 TEXT FLOW RECEIVED:");
-      console.log("📱 ctx.body:", ctx.body);
-      console.log("📍 ctx.message exists:", !!ctx.message);
-
       // Detectar si es un evento de ubicación de WhatsApp
       if (location.includes("event_location_")) {
-        console.log("🗺️ Detected event_location in TEXT FLOW");
-        console.log(
-          "📍 Full ctx.message:",
-          JSON.stringify(ctx.message, null, 2)
-        );
-
         // Esto es un evento de ubicación de WhatsApp pero no se procesó correctamente
         // Intentar extraer datos de ubicación del contexto
         const locationMessage = ctx.message?.locationMessage;
-        console.log(
-          "📍 locationMessage in text flow:",
-          JSON.stringify(locationMessage, null, 2)
-        );
 
         if (locationMessage) {
           console.log("✅ LocationMessage found! Processing coordinates...");
@@ -448,6 +564,33 @@ export const taxiFlow = addKeyword<BaileysProvider, MemoryDB>(
             await flowDynamic(`📍 Dirección: ${address}`);
           }
 
+          // 🆕 GEOCODIFICACIÓN AUTOMÁTICA CON MAPBOX
+          let detectedSector = "Ubicación GPS";
+
+          try {
+            await flowDynamic("🔍 Detectando sector automáticamente...");
+
+            console.log("🔥 LLAMANDO A GEOCODING SERVICE...");
+            if (!geocodingService) {
+              throw new Error("geocodingService no está disponible");
+            }
+
+            const sector = await geocodingService.getSectorFromCoordinates(
+              latitude,
+              longitude
+            );
+            detectedSector = sector;
+
+            await flowDynamic(`🏘️ Sector detectado: ${detectedSector}`);
+          } catch (error) {
+            console.error("❌ ERROR EN GEOCODIFICACIÓN:", error);
+            console.error("❌ Error stack:", error.stack);
+            console.error("❌ Error message:", error.message);
+            await flowDynamic(
+              "⚠️ No se pudo detectar el sector automáticamente"
+            );
+          }
+
           // Crear formato de ubicación que incluye coordenadas y texto
           const locationData = {
             type: "whatsapp_location" as const,
@@ -458,16 +601,16 @@ export const taxiFlow = addKeyword<BaileysProvider, MemoryDB>(
             formatted: `${name} - ${address}`,
           };
 
-          // Continuar con el procesamiento usando los datos de ubicación
-          await processLocationData(locationData, ctx, state, flowDynamic);
+          // Continuar con el procesamiento usando los datos de ubicación CON SECTOR
+          await processLocationData(
+            locationData,
+            ctx,
+            state,
+            flowDynamic,
+            detectedSector
+          );
           return;
         } else {
-          console.log("❌ LocationMessage NOT found in ctx.message");
-          console.log(
-            "🔍 Available keys in ctx.message:",
-            Object.keys(ctx.message || {})
-          );
-
           // Intentar buscar en otras propiedades posibles
           if (ctx.message) {
             console.log(
@@ -516,41 +659,33 @@ export const cancelRequestFlow = addKeyword<BaileysProvider, MemoryDB>([
     try {
       const userPhone = ctx.from;
 
-      console.log(
-        `📞 CancelRequestFlow triggered by: ${userPhone} with message: "${ctx.body}"`
-      );
-
-      // Verificar si el usuario es un conductor registrado
-      console.log(
-        "🔍 CancelRequestFlow: Checking if user is a registered driver..."
-      );
       const driverResult = await driverService.getDriverByPhone(userPhone);
 
       if (driverResult.success && driverResult.data) {
         // Es un conductor registrado - mostrar mensaje personalizado y terminar
-        console.log(
-          `✅ CancelRequestFlow: Driver found: ${driverResult.data.name} (${driverResult.data.phone})`
-        );
         return endFlow(MESSAGES.DRIVER_WELCOME);
       }
 
       // No es conductor - verificar si tiene solicitud pendiente
-      console.log(
-        "👤 CancelRequestFlow: User is not a driver, checking for pending requests..."
-      );
-      
+
       // Verificar si el cliente tiene realmente una solicitud pendiente
-      const pendingResult = await requestService.getClientPendingRequest(userPhone);
-      
+      const pendingResult = await requestService.getClientPendingRequest(
+        userPhone
+      );
+
       if (!pendingResult.success || !pendingResult.data) {
-        console.log("❌ CancelRequestFlow: No pending requests found for client - going to mainFlow");
+        console.log(
+          "❌ CancelRequestFlow: No pending requests found for client - going to mainFlow"
+        );
         await flowDynamic([MESSAGES.GREETING, MESSAGES.MENU].join("\n\n"));
         // Importar mainFlow dinámicamente para evitar dependencias circulares
         const { mainFlow } = await import("./main.flow.js");
         return gotoFlow(mainFlow);
       }
-      
-      console.log(`✅ CancelRequestFlow: Found pending request ${pendingResult.data.id} for client`);
+
+      console.log(
+        `✅ CancelRequestFlow: Found pending request ${pendingResult.data.id} for client`
+      );
       await flowDynamic(
         "🤔 ¿Estás seguro de que quieres cancelar tu solicitud de taxi?\n\n1️⃣ Sí, cancelar\n2️⃣ No, mantener solicitud"
       );
