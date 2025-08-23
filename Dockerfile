@@ -1,40 +1,28 @@
-# Image size ~ 400MB
-FROM node:21-alpine3.18 as builder
+# Dockerfile simple para BuilderBot Taxi App
+FROM node:21-alpine3.18
 
 WORKDIR /app
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
-ENV PNPM_HOME=/usr/local/bin
+# Copiar archivos de dependencias
+COPY package*.json ./
 
+# Instalar dependencias
+RUN npm install
+
+# Copiar código fuente
 COPY . .
 
-COPY package*.json *-lock.yaml ./
+# Generar Prisma Client
+RUN npx prisma generate
 
-RUN apk add --no-cache --virtual .gyp \
-        python3 \
-        make \
-        g++ \
-    && apk add --no-cache git \
-    && pnpm install && pnpm run build \
-    && apk del .gyp
+# Construir la aplicación
+RUN npm run build
 
-FROM node:21-alpine3.18 as deploy
+# Crear directorio para sesiones
+RUN mkdir -p bot_sessions
 
-WORKDIR /app
+# Exponer puerto
+EXPOSE 3008
 
-ARG PORT
-ENV PORT $PORT
-EXPOSE $PORT
-
-COPY --from=builder /app/assets ./assets
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/*.json /app/*-lock.yaml ./
-
-RUN corepack enable && corepack prepare pnpm@latest --activate 
-ENV PNPM_HOME=/usr/local/bin
-
-RUN npm cache clean --force && pnpm install --production --ignore-scripts \
-    && addgroup -g 1001 -S nodejs && adduser -S -u 1001 nodejs \
-    && rm -rf $PNPM_HOME/.npm $PNPM_HOME/.node-gyp
-
-CMD ["npm", "start"]
+# Comando para iniciar la aplicación
+CMD ["node", "dist/app.js"]

@@ -1,14 +1,29 @@
 services:
+  # Base de datos PostgreSQL
   db_taxi:
-    image: postgres:15
-    ports:
-      - "5432:5432"
+    image: postgres:15-alpine
     environment:
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: taxi_user
+      POSTGRES_PASSWORD: taxi_password
+      POSTGRES_DB: taxi_cooperativa
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  # Aplicación Taxi Bot
+  taxi_app:
+    build: .
+    depends_on:
+      - db_taxi
+    environment:
+      DATABASE_URL: postgresql://taxi_user:taxi_password@db_taxi:5432/taxi_cooperativa
+      NODE_ENV: production
+      PORT: 3008
+    volumes:
+      - ./bot_sessions:/app/bot_sessions
+    ports:
+      - "3008:3008"
 
 volumes:
   postgres_data:

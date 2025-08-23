@@ -1,0 +1,71 @@
+# Docker Compose for Development Environment
+# Use with: npm run docker:dev
+
+services:
+  # PostgreSQL Database
+  db_taxi:
+    image: postgres:15-alpine
+    container_name: taxi_cooperativa_db_dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-taxi_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-taxi_password}
+      POSTGRES_DB: ${DB_NAME:-taxi_cooperativa}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    networks:
+      - taxi_network_dev
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-taxi_user} -d ${DB_NAME:-taxi_cooperativa}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # BuilderBot Taxi Application (Development)
+  taxi_app_dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: develop
+    container_name: taxi_cooperativa_app_dev
+    restart: unless-stopped
+    depends_on:
+      db_taxi:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://${DB_USER:-taxi_user}:${DB_PASSWORD:-taxi_password}@db_taxi:5432/${DB_NAME:-taxi_cooperativa}
+      WHATSAPP_PHONE: ${WHATSAPP_PHONE}
+      USE_PAIRING_CODE: ${USE_PAIRING_CODE:-true}
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY}
+      PORT: 3008
+      REQUEST_TIMEOUT_MINUTES: ${REQUEST_TIMEOUT_MINUTES:-10}
+      CLEANUP_INTERVAL_MINUTES: ${CLEANUP_INTERVAL_MINUTES:-30}
+      EXPERIMENTAL_STORE: ${EXPERIMENTAL_STORE:-true}
+      TIME_RELEASE: ${TIME_RELEASE:-10800000}
+    volumes:
+      - bot_sessions_dev:/app/bot_sessions
+      - app_logs_dev:/app/logs
+      - ./src:/app/src:ro  # Mount source code for development
+    ports:
+      - "3008:3008"
+    networks:
+      - taxi_network_dev
+    command: ["npm", "run", "dev"]
+
+networks:
+  taxi_network_dev:
+    driver: bridge
+    name: taxi_cooperativa_network_dev
+
+volumes:
+  postgres_data_dev:
+    name: taxi_cooperativa_postgres_data_dev
+  bot_sessions_dev:
+    name: taxi_cooperativa_bot_sessions_dev
+  app_logs_dev:
+    name: taxi_cooperativa_app_logs_dev
