@@ -1,6 +1,64 @@
-dist/*
-node_modules
+# Build artifacts
+dist
 
+# Node.js
+node_modules
+npm-debug.log*
+.npm
+
+# Environment files
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# WhatsApp sessions (handled by Docker volumes)
 *_sessions
 *tokens
 .wwebjs*
+bot_sessions
+
+# IDE files
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Git
+.git
+.gitignore
+
+# Docker
+.dockerignore
+docker-compose*.yml
+
+# Documentation
+README.md
+*.md
+docs
+
+# Logs
+logs
+*.log
+
+# Testing
+coverage
+.nyc_output
+
+# Prisma
+prisma/migrations
+prisma/*.db
+prisma/*.db-journal
+
+# Temporary files
+tmp
+temp

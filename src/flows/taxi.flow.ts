@@ -31,9 +31,9 @@ export const taxiAssignedFlow = addKeyword<BaileysProvider, MemoryDB>([
 // La lógica de timeout se maneja ahora en welcomeFlow y mainFlow
 
 // Flujo que detecta y procesa ubicaciones GPS directamente
-export const debugAllEventsFlow = addKeyword<BaileysProvider, MemoryDB>([
-  /.*/, // Captura TODO pero con verificación de locationMessage
-]).addAction(async (ctx, { flowDynamic, state }) => {
+export const debugAllEventsFlow = addKeyword<BaileysProvider, MemoryDB>(
+  EVENTS.WELCOME
+).addAction(async (ctx, { flowDynamic, state }) => {
   // Verificar si es ubicación GPS PRIMERO
   const locationMessage = ctx.message?.locationMessage;
 
@@ -141,10 +141,10 @@ export const debugAllEventsFlow = addKeyword<BaileysProvider, MemoryDB>([
   return;
 });
 
-// Flujo para manejar ubicación de WhatsApp - CAMBIO A REGEX
-export const taxiLocationFlow = addKeyword<BaileysProvider, MemoryDB>([
-  /event_location/i, // Patrón para ubicaciones
-]).addAction(async (ctx, { flowDynamic, state, gotoFlow }) => {
+// Flujo para manejar ubicación de WhatsApp
+export const taxiLocationFlow = addKeyword<BaileysProvider, MemoryDB>(
+  EVENTS.LOCATION
+).addAction(async (ctx, { flowDynamic, state, gotoFlow }) => {
   try {
     // Verificar estado completo
     const fullState = await state.getMyState();
@@ -883,10 +883,12 @@ export const statusFlow = addKeyword<BaileysProvider, MemoryDB>([
         await flowDynamic(`👤 Conductor: ${request.driver.name}`);
         await flowDynamic(`🚗 Placa: ${request.driver.plate}`);
         await flowDynamic(`📱 Teléfono: ${request.driver.phone}`);
-        
+
         // Generar tiempo aleatorio entre 5 y 12 minutos
         const tiempoEstimado = Math.floor(Math.random() * (12 - 5 + 1)) + 5;
-        await flowDynamic(`⏰ El taxi estará aproximadamente en ${tiempoEstimado} minutos`);
+        await flowDynamic(
+          `⏰ El taxi estará aproximadamente en ${tiempoEstimado} minutos`
+        );
       }
     } else {
       await flowDynamic("ℹ️ No tienes solicitudes activas.");
