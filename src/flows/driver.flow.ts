@@ -402,78 +402,7 @@ export const driverInfoFlow = addKeyword<BaileysProvider, MemoryDB>([
   }
 });
 
-// Flujo para activar/desactivar conductor con comandos simples
-export const driverToggleFlow = addKeyword<BaileysProvider, MemoryDB>([
-  "a",
-  "A",
-  "d",
-  "D",
-]).addAction(async (ctx, { flowDynamic }) => {
-  try {
-    const driverPhone = ctx.from;
-    const message = ctx.body.trim();
-    
-    console.log(`🔄 DRIVER TOGGLE FLOW ACTIVATED!`);
-    console.log(`📱 Driver phone: ${driverPhone}`);
-    console.log(`💬 Message received: "${message}"`);
 
-    // Verificar que sea EXACTAMENTE una letra 'a', 'A', 'd' o 'D'
-    if (message.length !== 1 || !['a', 'A', 'd', 'D'].includes(message)) {
-      console.log(`❌ Message is not a single toggle command: "${message}" - exiting silently`);
-      return;
-    }
-
-    const command = message.toLowerCase();
-    console.log(`✅ Valid toggle command detected: "${command}"`);
-
-    // Verificar si es un conductor registrado
-    console.log("🔍 Step 1: Checking if user is a registered driver...");
-    const driverResult = await driverService.getDriverByPhone(driverPhone);
-
-    if (!driverResult.success || !driverResult.data) {
-      console.log("❌ User is NOT a registered driver - exiting silently");
-      return;
-    }
-
-    const driver = driverResult.data;
-    console.log(`✅ Driver found: ${driver.name} (ID: ${driver.id})`);
-
-    // Determinar el nuevo estado basado en el comando (insensible a mayúsculas/minúsculas)
-    const newStatus = command === "a";
-    const statusText = newStatus ? "ACTIVO ✅" : "INACTIVO ⏸️";
-    
-    console.log(`🔄 Step 2: Updating driver status to: ${statusText}`);
-
-    // Actualizar el estado del conductor
-    const updateResult = await driverService.updateDriverStatus(
-      driverPhone,
-      newStatus
-    );
-
-    if (updateResult.success) {
-      console.log(`✅ Driver status updated successfully to: ${statusText}`);
-      
-      // Mensaje de confirmación
-      await flowDynamic(`🔄 Estado actualizado: ${statusText}`);
-      
-      if (newStatus) {
-        await flowDynamic("🚕 Ya puedes recibir solicitudes de carreras.");
-        await flowDynamic("💡 Escribe 'd' o 'D' cuando quieras desactivarte.");
-      } else {
-        await flowDynamic("⏸️ No recibirás nuevas solicitudes hasta que te actives.");
-        await flowDynamic("💡 Escribe 'a' o 'A' cuando quieras activarte.");
-      }
-      
-      console.log(`🎯 DRIVER TOGGLE FLOW COMPLETED: ${driver.name} is now ${statusText}`);
-    } else {
-      console.log(`❌ Failed to update driver status: ${updateResult.error}`);
-      await flowDynamic(`❌ Error al actualizar estado: ${updateResult.error}`);
-    }
-  } catch (error) {
-    console.error("Error in driver toggle flow:", error);
-    await flowDynamic("🔧 Ha ocurrido un error del sistema. Por favor intenta nuevamente.");
-  }
-});
 
 // Flujo de ayuda para conductores
 export const driverHelpFlow = addKeyword<BaileysProvider, MemoryDB>([
@@ -496,19 +425,15 @@ export const driverHelpFlow = addKeyword<BaileysProvider, MemoryDB>([
     const driver = driverResult.data;
     const status = driver.isActive ? "ACTIVO ✅" : "INACTIVO ⏸️";
 
-          await flowDynamic("🚕 Comandos para Conductores:");
-      await flowDynamic("💡 Comandos rápidos:");
-      await flowDynamic("• 'a' o 'A' - Activarte para recibir carreras");
-      await flowDynamic("• 'd' o 'D' - Desactivarte para no recibir notificaciones");
-      await flowDynamic("");
-      await flowDynamic("📋 Comandos principales:");
-      await flowDynamic("• '1' - Aceptar carrera disponible");
-      await flowDynamic("• 'ubicacion' - Actualizar tu ubicación");
-      await flowDynamic("• 'mi info' - Ver tu información");
-      await flowDynamic("• 'registrar conductor' - Registrar nuevo conductor");
-      await flowDynamic("");
-      await flowDynamic(`📊 Tu estado actual: ${status}`);
-      await flowDynamic("❓ Para más ayuda, contacta al administrador.");
+              await flowDynamic("🚕 Comandos para Conductores:");
+    await flowDynamic("📋 Comandos principales:");
+    await flowDynamic("• '1' - Aceptar carrera disponible");
+    await flowDynamic("• 'ubicacion' - Actualizar tu ubicación");
+    await flowDynamic("• 'mi info' - Ver tu información");
+    await flowDynamic("• 'registrar conductor' - Registrar nuevo conductor");
+    await flowDynamic("");
+    await flowDynamic(`📊 Tu estado actual: ${status}`);
+    await flowDynamic("❓ Para más ayuda, contacta al administrador.");
 
     console.log(`📚 Driver help shown to: ${driver.name} (${driver.phone})`);
   } catch (error) {

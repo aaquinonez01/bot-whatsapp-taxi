@@ -45,7 +45,6 @@ import {
   driverStatusFlow,
   driverLocationFlow,
   driverInfoFlow,
-  driverToggleFlow,
   driverHelpFlow,
   setDriverFlowServices,
 } from "./flows/driver.flow.js";
@@ -93,7 +92,6 @@ const main = async () => {
       idleFlow, // CRÍTICO: Manejar timeout de inactividad de usuarios
 
       // Flujos de conductores - MÁXIMA PRIORIDAD para aceptar carreras
-      driverToggleFlow, // CRÍTICO: Comandos rápidos 'a' y 'd' para activar/desactivar
       driverHelpFlow, // Ayuda para conductores
       driverAcceptFlow, // CRÍTICO: Debe ir ANTES que postTimeoutFlow y todos los demás
       driverRejectFlow,

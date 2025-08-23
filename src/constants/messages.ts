@@ -4,10 +4,6 @@ export const MESSAGES = {
 
 Espero que tengas un buen día. Estaré pendiente de todas las solicitudes de los clientes.
 
-💡 Comandos rápidos:
-• Escribe "a" o "A" para activarte y recibir carreras
-• Escribe "d" o "D" para desactivarte y no recibir notificaciones
-
 🚕 Para aceptar carreras: Presiona "1" cuando lleguen solicitudes.
 
 ❓ Escribe "ayuda" para ver todos los comandos disponibles.`,
@@ -46,10 +42,6 @@ Espero que tengas un buen día. Estaré pendiente de todas las solicitudes de lo
 3️⃣ Preguntas frecuentes`,
     
     DRIVER_HELP: `🚕 Comandos para Conductores:
-
-💡 Comandos rápidos:
-• "a" o "A" - Activarte para recibir carreras
-• "d" o "D" - Desactivarte para no recibir notificaciones
 
 📋 Comandos principales:
 • "1" - Aceptar carrera disponible
