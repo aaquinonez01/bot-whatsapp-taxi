@@ -4,8 +4,8 @@ services:
     image: postgres:15-alpine
     environment:
       POSTGRES_USER: taxi_user
-      POSTGRES_PASSWORD: taxi_password
-      POSTGRES_DB: taxi_cooperativa
+      POSTGRES_PASSWORD: taxi_chat_bot
+      POSTGRES_DB: taxi_db
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -17,7 +17,7 @@ services:
     depends_on:
       - db_taxi
     environment:
-      DATABASE_URL: postgresql://taxi_user:taxi_password@db_taxi:5432/taxi_cooperativa
+      DATABASE_URL: postgresql://taxi_user:taxi_chat_bot@db_taxi:5432/taxi_db
       NODE_ENV: production
       PORT: 3008
     volumes:
