@@ -7,10 +7,17 @@ async function main() {
 
   // Array de conductores a insertar
   const drivers = [
-    {
+    /*{
       name: "Jordan Talahua",
       phone: "0969183227",
       plate: "XAA-123",
+      location: null,
+      isActive: true,
+    },*/
+    {
+      name: "Edison Chavez",
+      phone: "0983115611",
+      plate: "MBG-7427",
       location: null,
       isActive: true,
     },
@@ -107,11 +114,15 @@ async function main() {
       },
       create: driverData,
     });
-    console.log(`✅ Conductor creado/actualizado: ${driver.name} (${driver.plate})`);
+    console.log(
+      `✅ Conductor creado/actualizado: ${driver.name} (${driver.plate})`
+    );
   }
 
   console.log("🎉 Database seeding completed!");
-  console.log(`📊 Total de conductores en la base de datos: ${await prisma.driver.count()}`);
+  console.log(
+    `📊 Total de conductores en la base de datos: ${await prisma.driver.count()}`
+  );
 }
 
 main()
