@@ -12,7 +12,7 @@ import * as IdleCustom from "../utils/idle-custom.js";
 
 // Flujo especial para limpiar estado cuando se asigna taxi
 export const taxiAssignedFlow = addKeyword<BaileysProvider, MemoryDB>([
-  "¡Taxi asignado!",
+  "*Taxi asignado*",
 ]).addAction(async (ctx, { state }) => {
   // Este flujo se activa cuando el cliente recibe el mensaje de asignación
 
@@ -66,7 +66,7 @@ export const debugAllEventsFlow = addKeyword<BaileysProvider, MemoryDB>(
         );
         detectedSector = sector;
 
-        await flowDynamic(`🏘️ Sector detectado: ${detectedSector}`);
+        await flowDynamic(`🏘️ Sector detectado:* ${detectedSector}*`);
       } catch (error) {
         console.error("❌ ERROR EN GEOCODIFICACIÓN:", error);
         console.error("❌ Error stack:", error.stack);

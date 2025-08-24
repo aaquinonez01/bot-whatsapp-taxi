@@ -1,5 +1,5 @@
 export const MESSAGES = {
-  GREETING: "¡Hola! Bienvenido a Taxi Cooperativa 🚕",
+  GREETING: "¡Hola! Bienvenido a *MI TAXI LATACUNGA* 🚕",
   DRIVER_WELCOME: `Hola conductor! 👋
 
 Espero que tengas un buen día. Estaré pendiente de todas las solicitudes de los clientes.
@@ -11,12 +11,12 @@ Espero que tengas un buen día. Estaré pendiente de todas las solicitudes de lo
 1️⃣ Pedir un taxi`,
   
   TAXI: {
-    ASK_NAME: "Por favor, dime tu nombre:",
-    ASK_LOCATION: "📍 Es necesario que envíes tu ubicación usando la opción de WhatsApp\n\n⚠️ IMPORTANTE: Usa el botón de ubicación 📍 de WhatsApp para obtener tu ubicación exacta",
+    ASK_NAME: "Por favor, dime tu *nombre*:",
+    ASK_LOCATION: "📍 Es necesario que envíes tu *ubicación actual* usando la opción de WhatsApp\n\n⚠️ IMPORTANTE: Usa el botón de ubicación 📍 de WhatsApp para obtener tu ubicación exacta",
     SEARCHING: "🔍 Buscando taxi disponible, por favor espera un momento...",
     
     CLIENT_ASSIGNED: (driverName: string, plate: string, driverPhone: string) => 
-      `✅ ¡Taxi asignado!\n👤 Conductor: ${driverName}\n🚗 Placa: ${plate}\n📱 Teléfono: ${driverPhone}`,
+      `✅ *Taxi asignado*\n👤 Conductor: ${driverName}\n🚗 Placa: ${plate}\n📱 Teléfono: ${driverPhone}`,
     
     DRIVER_NOTIFICATION: (clientName: string, location: string, requestId: string) => 
       `🚕 Nueva solicitud de taxi:\n👤 Cliente: ${clientName}\n📍 Ubicación: ${location}\n\n1️⃣ Presiona "1" para aceptar esta carrera`,
