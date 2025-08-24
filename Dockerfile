@@ -18,8 +18,6 @@ RUN npx prisma generate
 # Construir la aplicación
 RUN npm run build
 
-# Crear directorio para sesiones
-RUN mkdir -p bot_sessions
 
 # Exponer puerto
 EXPOSE 3008

@@ -114,11 +114,15 @@ async function main() {
       },
       create: driverData,
     });
-    console.log(`✅ Conductor creado/actualizado: ${driver.name} (${driver.plate})`);
+    console.log(
+      `✅ Conductor creado/actualizado: ${driver.name} (${driver.plate})`
+    );
   }
 
   console.log("🎉 Database seeding completed!");
-  console.log(`📊 Total de conductores en la base de datos: ${await prisma.driver.count()}`);
+  console.log(
+    `📊 Total de conductores en la base de datos: ${await prisma.driver.count()}`
+  );
 }
 
 main()
