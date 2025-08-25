@@ -18,6 +18,12 @@ Espero que tengas un buen día. Estaré pendiente de todas las solicitudes de lo
     CLIENT_ASSIGNED: (driverName: string, plate: string, driverPhone: string) => 
       `✅ *Taxi asignado*\n👤 Conductor: ${driverName}\n🚗 Placa: ${plate}\n📱 Teléfono: ${driverPhone}`,
     
+    CLIENT_CANCELLATION_AVAILABLE: "📱 Puede cancelar el taxi presionando *2* (máximo en 5 minutos)",
+    
+    CLIENT_CANCELLATION_SUCCESS: "✅ Usted ha cancelado el taxi exitosamente.",
+    
+    CLIENT_CANCELLATION_EXPIRED: "⏰ Ya no puede cancelar este taxi. El tiempo límite de 5 minutos ha expirado.",
+    
     DRIVER_NOTIFICATION: (clientName: string, location: string, requestId: string) => 
       `🚕 Nueva solicitud de taxi:\n👤 Cliente: ${clientName}\n📍 Ubicación: ${location}\n\n1️⃣ Presiona "1" para aceptar esta carrera`,
     

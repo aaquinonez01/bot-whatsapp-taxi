@@ -12,7 +12,7 @@ import * as IdleCustom from "../utils/idle-custom.js";
 
 // Flujo especial para limpiar estado cuando se asigna taxi
 export const taxiAssignedFlow = addKeyword<BaileysProvider, MemoryDB>([
-  "*Taxi asignado*",
+  "__taxi_assigned_internal__",
 ]).addAction(async (ctx, { state }) => {
   // Este flujo se activa cuando el cliente recibe el mensaje de asignación
 
@@ -707,13 +707,13 @@ export const taxiFlow = addKeyword<BaileysProvider, MemoryDB>(
     }
   );
 
-// Flujo para manejar cancelaciones
+// Flujo para manejar cancelaciones 
 export const cancelRequestFlow = addKeyword<BaileysProvider, MemoryDB>([
   "cancelar",
   "cancel",
   "2",
 ])
-  .addAction(async (ctx, { flowDynamic, endFlow, gotoFlow }) => {
+  .addAction(async (ctx, { flowDynamic, endFlow, gotoFlow, state }) => {
     try {
       const userPhone = ctx.from;
 
@@ -724,35 +724,81 @@ export const cancelRequestFlow = addKeyword<BaileysProvider, MemoryDB>([
         return endFlow(MESSAGES.DRIVER_WELCOME);
       }
 
-      // No es conductor - verificar si tiene solicitud pendiente
+      // CASO 1: Verificar si tiene taxi asignado que puede cancelar (dentro de 5 min)
+      const assignedCancelResult =
+        await requestService.canClientCancelAssignedRequest(userPhone);
 
-      // Verificar si el cliente tiene realmente una solicitud pendiente
-      const pendingResult = await requestService.getClientPendingRequest(
-        userPhone
-      );
+      if (
+        assignedCancelResult.success &&
+        assignedCancelResult.data?.canCancel
+      ) {
+        // Tiene taxi asignado y puede cancelarlo - CANCELAR DIRECTAMENTE
+        const request = assignedCancelResult.data.request!;
+
+        console.log(`✅ Client can cancel assigned taxi ${request.id} - canceling directly`);
+
+        const cancelResult = await requestService.cancelRequest(
+          request.id,
+          "Cancelado por el cliente dentro del tiempo límite"
+        );
+
+        if (cancelResult.success) {
+          // Notificar al conductor
+          if (request.driver) {
+            await notificationService.sendToDriver(
+              request.driver.phone,
+              `❌ El cliente ${request.clientName} ha cancelado la carrera.`
+            );
+          }
+
+          // Limpiar completamente el estado
+          await state.clear();
+          console.log(`🧹 Estado limpiado para usuario ${userPhone} después de cancelar taxi asignado`);
+
+          await flowDynamic(MESSAGES.TAXI.CLIENT_CANCELLATION_SUCCESS);
+          await flowDynamic([MESSAGES.GREETING, MESSAGES.MENU].join("\n\n"));
+
+          const { mainFlow } = await import("./main.flow.js");
+          return gotoFlow(mainFlow);
+        } else {
+          await flowDynamic("❌ Error al cancelar el taxi. Intenta nuevamente.");
+          return;
+        }
+      }
+
+      // CASO 2: Verificar si tiene taxi asignado pero tiempo expirado
+      const assignedRequestResult =
+        await requestService.getClientAssignedRequest(userPhone);
+      if (assignedRequestResult.success && assignedRequestResult.data) {
+        // Tiene taxi asignado pero el tiempo ya expiró - NO PUEDE CANCELAR
+        console.log(`❌ Client has assigned taxi but time expired - cannot cancel`);
+        await flowDynamic(MESSAGES.TAXI.CLIENT_CANCELLATION_EXPIRED);
+        return;
+      }
+
+      // CASO 3: Verificar si tiene solicitud pendiente
+      const pendingResult = await requestService.getClientPendingRequest(userPhone);
 
       if (!pendingResult.success || !pendingResult.data) {
-        console.log(
-          "❌ CancelRequestFlow: No pending requests found for client - going to mainFlow"
-        );
+        // No tiene ninguna solicitud activa
+        console.log("❌ CancelRequestFlow: No requests found for client");
         await flowDynamic([MESSAGES.GREETING, MESSAGES.MENU].join("\n\n"));
-        // Importar mainFlow dinámicamente para evitar dependencias circulares
         const { mainFlow } = await import("./main.flow.js");
         return gotoFlow(mainFlow);
       }
 
-      console.log(
-        `✅ CancelRequestFlow: Found pending request ${pendingResult.data.id} for client`
-      );
+      // Tiene solicitud pendiente - PREGUNTAR CONFIRMACIÓN
+      console.log(`✅ CancelRequestFlow: Found pending request ${pendingResult.data.id} - asking confirmation`);
+      
+      // Marcar en estado que es una solicitud pendiente para el .addAnswer
+      await state.update({ cancelationType: "pending", requestId: pendingResult.data.id });
+      
       await flowDynamic(
         "🤔 ¿Estás seguro de que quieres cancelar tu solicitud de taxi?\n\n1️⃣ Sí, cancelar\n2️⃣ No, mantener solicitud"
       );
     } catch (error) {
-      console.error("Error in cancelRequestFlow driver check:", error);
-      // En caso de error, continuar con flujo normal
-      await flowDynamic(
-        "🤔 ¿Estás seguro de que quieres cancelar tu solicitud de taxi?\n\n1️⃣ Sí, cancelar\n2️⃣ No, mantener solicitud"
-      );
+      console.error("Error in cancelRequestFlow:", error);
+      await flowDynamic(MESSAGES.ERRORS.SYSTEM_ERROR);
     }
   })
   .addAnswer(
@@ -761,51 +807,40 @@ export const cancelRequestFlow = addKeyword<BaileysProvider, MemoryDB>([
       capture: true,
       delay: 500,
     },
-    async (ctx, { flowDynamic, state }) => {
+    async (ctx, { flowDynamic, state, gotoFlow }) => {
       const response = ctx.body.trim();
+      const cancelationType = state.get("cancelationType");
+      const requestId = state.get("requestId");
 
-      if (response === "1") {
+      if (response === "1" && cancelationType === "pending" && requestId) {
         try {
           const clientPhone = ctx.from;
 
-          // Buscar solicitud pendiente del cliente
-          const pendingResult = await requestService.getClientPendingRequest(
-            clientPhone
-          );
-
-          if (!pendingResult.success) {
-            await flowDynamic(
-              "ℹ️ No tienes solicitudes pendientes para cancelar."
-            );
-            return;
-          }
-
-          // Cancelar solicitud
+          // Cancelar la solicitud pendiente
           const cancelResult = await requestService.cancelRequest(
-            pendingResult.data!.id,
+            requestId,
             "Cancelada por el cliente"
           );
 
           if (cancelResult.success) {
-            // Limpiar estado y marcar que se puede usar el menu
+            // Limpiar estado completamente
             await state.clear();
-            await state.update({ hadTimeout: true });
 
             await flowDynamic("✅ Tu solicitud de taxi ha sido cancelada.");
             await flowDynamic([MESSAGES.GREETING, MESSAGES.MENU].join("\n\n"));
+            
+            const { mainFlow } = await import("./main.flow.js");
+            return gotoFlow(mainFlow);
           } else {
-            await flowDynamic(
-              "❌ Error al cancelar la solicitud. Intenta nuevamente."
-            );
+            await flowDynamic("❌ Error al cancelar la solicitud. Intenta nuevamente.");
           }
         } catch (error) {
-          console.error("Error canceling request:", error);
+          console.error("Error canceling pending request:", error);
           await flowDynamic(MESSAGES.ERRORS.SYSTEM_ERROR);
         }
-      } else if (response === "2") {
-        await flowDynamic(
-          "✅ Solicitud mantenida. Esperando asignación de conductor..."
-        );
+      } else if (response === "2" && cancelationType === "pending") {
+        await state.clear();
+        await flowDynamic("✅ Solicitud mantenida. Esperando asignación de conductor...");
       } else {
         await flowDynamic(
           "❌ Opción inválida. Presiona:\n1️⃣ Para cancelar\n2️⃣ Para mantener tu solicitud"

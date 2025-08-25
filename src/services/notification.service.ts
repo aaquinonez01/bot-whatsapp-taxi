@@ -154,6 +154,10 @@ export class NotificationService {
       // Enviar mensaje al cliente
       await this.provider.sendMessage(formattedPhone, message, {});
 
+      // Enviar mensaje adicional de cancelación disponible
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      await this.provider.sendMessage(formattedPhone, MESSAGES.TAXI.CLIENT_CANCELLATION_AVAILABLE, {});
+
       return true;
     } catch (error) {
       console.error("Error notifying client assignment:", error);

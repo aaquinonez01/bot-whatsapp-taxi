@@ -216,6 +216,36 @@ export class RequestService {
     }
   }
 
+  async getClientAssignedRequest(
+    clientPhone: string
+  ): Promise<ServiceResponse<TaxiRequest>> {
+    try {
+      const cleanPhone = ValidationUtils.cleanPhoneNumber(clientPhone);
+
+      const request = await prisma.taxiRequest.findFirst({
+        where: {
+          clientPhone: cleanPhone,
+          status: RequestStatus.ASSIGNED,
+        },
+        include: {
+          driver: true,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+
+      if (!request) {
+        return { success: false, error: "No hay solicitudes asignadas" };
+      }
+
+      return { success: true, data: request as TaxiRequest };
+    } catch (error) {
+      console.error("Error getting client assigned request:", error);
+      return { success: false, error: "Error interno del servidor" };
+    }
+  }
+
   async getAllPendingRequests(): Promise<ServiceResponse<TaxiRequest[]>> {
     try {
       const requests = await prisma.taxiRequest.findMany({
@@ -263,6 +293,44 @@ export class RequestService {
       };
     } catch (error) {
       console.error("Error cancelling request:", error);
+      return { success: false, error: "Error interno del servidor" };
+    }
+  }
+
+  async canClientCancelAssignedRequest(
+    clientPhone: string
+  ): Promise<ServiceResponse<{ canCancel: boolean; request?: TaxiRequest }>> {
+    try {
+      const assignedRequestResult = await this.getClientAssignedRequest(clientPhone);
+      
+      if (!assignedRequestResult.success || !assignedRequestResult.data) {
+        return { 
+          success: true, 
+          data: { canCancel: false },
+          message: "No tienes taxis asignados para cancelar"
+        };
+      }
+
+      const request = assignedRequestResult.data;
+      const currentTime = Date.now();
+      const assignmentTime = new Date(request.updatedAt).getTime(); // updatedAt es cuando se asignó
+      const timeDifference = currentTime - assignmentTime;
+      const fiveMinutesInMs = 5 * 60 * 1000; // 5 minutos en milisegundos
+
+      const canCancel = timeDifference <= fiveMinutesInMs;
+
+      return {
+        success: true,
+        data: { 
+          canCancel,
+          request: canCancel ? request : undefined
+        },
+        message: canCancel 
+          ? "Puedes cancelar tu taxi asignado"
+          : "El tiempo límite de 5 minutos para cancelar ha expirado"
+      };
+    } catch (error) {
+      console.error("Error checking if client can cancel assigned request:", error);
       return { success: false, error: "Error interno del servidor" };
     }
   }
