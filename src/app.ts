@@ -46,6 +46,7 @@ import {
   driverLocationFlow,
   driverInfoFlow,
   driverHelpFlow,
+  driverListFlow,
   setDriverFlowServices,
 } from "./flows/driver.flow.js";
 
@@ -93,6 +94,7 @@ const main = async () => {
 
       // Flujos de conductores - MÁXIMA PRIORIDAD para aceptar carreras
       driverHelpFlow, // Ayuda para conductores
+      driverListFlow, // Lista de taxistas (solo para conductores)
       driverAcceptFlow, // CRÍTICO: Debe ir ANTES que postTimeoutFlow y todos los demás
       driverRejectFlow,
       driverRegisterFlow,

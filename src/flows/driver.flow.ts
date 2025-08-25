@@ -403,6 +403,79 @@ export const driverInfoFlow = addKeyword<BaileysProvider, MemoryDB>([
 });
 
 
+// Flujo para mostrar lista de taxistas (solo para conductores)
+export const driverListFlow = addKeyword<BaileysProvider, MemoryDB>([
+  "taxi",
+  "taxistas",
+  "conductores",
+  "lista conductores",
+  "ver conductores",
+]).addAction(async (ctx, { flowDynamic }) => {
+  try {
+    const driverPhone = ctx.from;
+
+    // Verificar si es un conductor registrado
+    const driverResult = await driverService.getDriverByPhone(driverPhone);
+
+    if (!driverResult.success || !driverResult.data) {
+      // Si el usuario no es un conductor, salir silenciosamente
+      // Los clientes que escriben "taxi" deben ir al quickTaxiFlow
+      return;
+    }
+
+    console.log(`📋 Driver ${driverResult.data.name} requested drivers list`);
+
+    // Es un conductor - mostrar la lista de todos los conductores
+    const allDriversResult = await driverService.getAllDrivers();
+
+    if (!allDriversResult.success || !allDriversResult.data) {
+      await flowDynamic("❌ Error al obtener la lista de conductores");
+      return;
+    }
+
+    const drivers = allDriversResult.data;
+
+    if (drivers.length === 0) {
+      await flowDynamic("📭 No hay conductores registrados en el sistema");
+      return;
+    }
+
+    // Crear mensaje con la lista de conductores
+    await flowDynamic("🚕 **LISTA DE TAXISTAS**");
+    await flowDynamic(`📊 Total: ${drivers.length} conductores`);
+    await flowDynamic("──────────────────────");
+
+    // Mostrar conductores activos primero
+    const activeDrivers = drivers.filter(d => d.isActive);
+    const inactiveDrivers = drivers.filter(d => !d.isActive);
+
+    if (activeDrivers.length > 0) {
+      await flowDynamic(`✅ **ACTIVOS (${activeDrivers.length})**`);
+      
+      for (const driver of activeDrivers) {
+        const message = `👤 ${driver.name}\n🚗 ${driver.plate}\n📱 ${driver.phone}\n✅ DISPONIBLE`;
+        await flowDynamic(message);
+        await flowDynamic("──────────");
+      }
+    }
+
+    if (inactiveDrivers.length > 0) {
+      await flowDynamic(`⏸️ **INACTIVOS (${inactiveDrivers.length})**`);
+      
+      for (const driver of inactiveDrivers) {
+        const message = `👤 ${driver.name}\n🚗 ${driver.plate}\n📱 ${driver.phone}\n⏸️ NO DISPONIBLE`;
+        await flowDynamic(message);
+        await flowDynamic("──────────");
+      }
+    }
+
+    await flowDynamic("📱 Para actualizar tu estado: escribe 'activo' o 'inactivo'");
+
+  } catch (error) {
+    console.error("Error in driverListFlow:", error);
+    await flowDynamic("❌ Error del sistema al obtener la lista de conductores");
+  }
+});
 
 // Flujo de ayuda para conductores
 export const driverHelpFlow = addKeyword<BaileysProvider, MemoryDB>([

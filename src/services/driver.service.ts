@@ -154,6 +154,27 @@ export class DriverService {
     }
   }
 
+  async getAllDrivers(): Promise<ServiceResponse<Driver[]>> {
+    try {
+      const drivers = await prisma.driver.findMany({
+        orderBy: [
+          { isActive: 'desc' }, // Activos primero
+          { name: 'asc' }       // Luego alfabético
+        ]
+      })
+
+      return { 
+        success: true, 
+        data: drivers as Driver[],
+        message: `${drivers.length} conductores encontrados (${drivers.filter(d => d.isActive).length} activos, ${drivers.filter(d => !d.isActive).length} inactivos)`
+      }
+
+    } catch (error) {
+      console.error('Error getting all drivers:', error)
+      return { success: false, error: 'Error interno del servidor' }
+    }
+  }
+
   async updateDriverStatus(phone: string, isActive: boolean): Promise<ServiceResponse<Driver>> {
     try {
       const cleanPhone = ValidationUtils.cleanPhoneNumber(phone)
