@@ -15,6 +15,13 @@ async function main() {
     //   isActive: true,
     // },
     {
+      name: "Duval Bonilla",
+      phone: "0983434739",
+      plate: "PFD-1550",
+      location: null,
+      isActive: true,
+    },
+    {
       name: "Procel Gustavo",
       phone: "0998459175",
       plate: "XBB-9471",
