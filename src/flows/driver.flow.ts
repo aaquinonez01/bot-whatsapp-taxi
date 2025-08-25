@@ -503,7 +503,7 @@ export const driverHelpFlow = addKeyword<BaileysProvider, MemoryDB>([
     await flowDynamic("• '1' - Aceptar carrera disponible");
     await flowDynamic("• 'ubicacion' - Actualizar tu ubicación");
     await flowDynamic("• 'mi info' - Ver tu información");
-    await flowDynamic("• 'registrar conductor' - Registrar nuevo conductor");
+    await flowDynamic("• 'taxi' - Ver lista de todos los conductores");
     await flowDynamic("");
     await flowDynamic(`📊 Tu estado actual: ${status}`);
     await flowDynamic("❓ Para más ayuda, contacta al administrador.");
