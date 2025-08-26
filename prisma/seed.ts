@@ -135,7 +135,7 @@ async function main() {
     },
     {
       name: "Richard Amanta",
-      phone: "0502876477",
+      phone: "0995128152",
       plate: "Xbb 7249",
       location: null,
       isActive: true,
