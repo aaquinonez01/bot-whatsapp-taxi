@@ -7,13 +7,13 @@ async function main() {
 
   // Array de conductores a insertar
   const drivers = [
-    // {
-    //   name: "Jordan Talahua",
-    //   phone: "0983983250",
-    //   plate: "XAA-123",
-    //   location: null,
-    //   isActive: true,
-    // },
+    {
+      name: "Jordan Talahua",
+      phone: "0983983250",
+      plate: "XAA-123",
+      location: null,
+      isActive: true,
+    },
     {
       name: "Duval Bonilla",
       phone: "0983434739",
@@ -109,6 +109,41 @@ async function main() {
       name: "Gregorio Pacheco Calvopiña",
       phone: "0984612874",
       plate: "XBA_3753",
+      location: null,
+      isActive: true,
+    },
+    {
+      name: "Jaime Cuchiparte",
+      phone: "0959201330",
+      plate: "PDS2561",
+      location: null,
+      isActive: true,
+    },
+    {
+      name: "Jesús Guerrero",
+      phone: "0962634036",
+      plate: "PBM4911",
+      location: null,
+      isActive: true,
+    },
+    {
+      name: "Klever Suntasig",
+      phone: "0992941288",
+      plate: "XAA-1678",
+      location: null,
+      isActive: true,
+    },
+    {
+      name: "Richard Amanta",
+      phone: "0502876477",
+      plate: "Xbb 7249",
+      location: null,
+      isActive: true,
+    },
+    {
+      name: "Edison Chiriboga",
+      phone: "0979301043",
+      plate: "XBA7296",
       location: null,
       isActive: true,
     },

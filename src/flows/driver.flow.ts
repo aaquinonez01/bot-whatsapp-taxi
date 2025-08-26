@@ -28,7 +28,7 @@ export const driverAcceptFlow = addKeyword<BaileysProvider, MemoryDB>([
 ]).addAction(async (ctx, { flowDynamic }) => {
   try {
     const driverPhone = ctx.from;
-    
+
     console.log("🔥 DRIVER ACCEPT FLOW ACTIVATED!");
     console.log(`📱 Driver phone: ${driverPhone}`);
     console.log(`💬 Message received: "${ctx.body}"`);
@@ -67,7 +67,7 @@ export const driverAcceptFlow = addKeyword<BaileysProvider, MemoryDB>([
     if (!oldestRequestResult.success || !oldestRequestResult.data) {
       console.log("❌ NO pending requests found");
       console.log(`❌ Request result: ${JSON.stringify(oldestRequestResult)}`);
-      
+
       // Nuevo mensaje más amigable para cuando no hay carreras pendientes
       await flowDynamic(MESSAGES.TAXI.NO_PENDING_REQUESTS);
       return;
@@ -75,7 +75,9 @@ export const driverAcceptFlow = addKeyword<BaileysProvider, MemoryDB>([
 
     const request = oldestRequestResult.data;
     console.log(`✅ Found pending request: ${request.id}`);
-    console.log(`📋 Request details: Client=${request.clientName}, Location=${request.location}`);
+    console.log(
+      `📋 Request details: Client=${request.clientName}, Location=${request.location}`
+    );
 
     // 4. Intentar asignar la carrera al conductor (con control de concurrencia)
     console.log("🔍 Step 4: Attempting to assign driver to request...");
@@ -100,7 +102,7 @@ export const driverAcceptFlow = addKeyword<BaileysProvider, MemoryDB>([
     const assignedDriver = assignmentResult.driver!;
 
     console.log("🔍 Step 5: Notifying driver and client...");
-    
+
     // Notificar al cliente con la información del conductor
     console.log("📞 Notifying client about assignment...");
     const clientNotificationSuccess =
@@ -112,7 +114,9 @@ export const driverAcceptFlow = addKeyword<BaileysProvider, MemoryDB>([
     if (clientNotificationSuccess) {
       console.log("✅ Client notification SUCCESSFUL");
       // Mensaje único y conciso para el conductor
-      await flowDynamic(`✅ Carrera asignada! El cliente recibirá tu información. Este es su número para que puedas comunicarte con él y coordinar la carrera: ${assignedRequest.clientPhone}`);
+      await flowDynamic(
+        `✅ Carrera asignada! El cliente recibirá tu información. Este es su número para que puedas comunicarte con él y coordinar la carrera: ${assignedRequest.clientPhone}`
+      );
     } else {
       console.log("❌ Client notification FAILED");
       await flowDynamic(
@@ -130,7 +134,9 @@ export const driverAcceptFlow = addKeyword<BaileysProvider, MemoryDB>([
       );
 
     console.log("🎯 FINAL SUMMARY:");
-    console.log(`✅ Carrera asignada: ${request.id} -> Driver: ${driver.name} (${driver.phone})`);
+    console.log(
+      `✅ Carrera asignada: ${request.id} -> Driver: ${driver.name} (${driver.phone})`
+    );
     console.log(`📢 Otros conductores notificados: ${otherDriversResult.sent}`);
     console.log("🔥 DRIVER ACCEPT FLOW COMPLETED SUCCESSFULLY!");
   } catch (error) {
@@ -208,7 +214,9 @@ export const driverRegisterFlow = addKeyword<BaileysProvider, MemoryDB>([
       }
 
       await state.update({ driverPlate: plate.toUpperCase() });
-      await flowDynamic('📍 Ubicación actual (opcional, puedes escribir "skip"):\n\n⚠️ IMPORTANTE: Si proporcionas ubicación, usa el botón 📍 de WhatsApp para mayor precisión');
+      await flowDynamic(
+        '📍 Ubicación actual (opcional, puedes escribir "skip"):\n\n⚠️ IMPORTANTE: Si proporcionas ubicación, usa el botón 📍 de WhatsApp para mayor precisión'
+      );
     }
   )
   .addAction({ capture: true }, async (ctx, { flowDynamic, state }) => {
@@ -245,7 +253,7 @@ export const driverRegisterFlow = addKeyword<BaileysProvider, MemoryDB>([
           `📱 Teléfono: ${ValidationUtils.cleanPhoneNumber(driverPhone)}`
         );
         if (driverLocation) {
-          await flowDynamic(`📍 Ubicación: ${driverLocation}`);
+          await flowDynamic(`📍 Ubicación: **${driverLocation}**`);
         }
         await flowDynamic(
           '\n🚕 Ya puedes aceptar carreras presionando "1" cuando lleguen solicitudes.'
@@ -325,7 +333,9 @@ export const driverLocationFlow = addKeyword<BaileysProvider, MemoryDB>([
         return;
       }
 
-      await flowDynamic("📍 Es necesario que envíes tu ubicación usando el botón de ubicación de WhatsApp\n\n⚠️ IMPORTANTE: Usa el botón 📍 de WhatsApp para obtener tu ubicación exacta");
+      await flowDynamic(
+        "📍 Es necesario que envíes tu ubicación usando el botón de ubicación de WhatsApp\n\n⚠️ IMPORTANTE: Usa el botón 📍 de WhatsApp para obtener tu ubicación exacta"
+      );
     } catch (error) {
       console.error("Error preparing driver location flow:", error);
     }
@@ -402,7 +412,6 @@ export const driverInfoFlow = addKeyword<BaileysProvider, MemoryDB>([
   }
 });
 
-
 // Flujo para mostrar lista de taxistas (solo para conductores)
 export const driverListFlow = addKeyword<BaileysProvider, MemoryDB>([
   "taxi",
@@ -446,12 +455,12 @@ export const driverListFlow = addKeyword<BaileysProvider, MemoryDB>([
     await flowDynamic("──────────────────────");
 
     // Mostrar conductores activos primero
-    const activeDrivers = drivers.filter(d => d.isActive);
-    const inactiveDrivers = drivers.filter(d => !d.isActive);
+    const activeDrivers = drivers.filter((d) => d.isActive);
+    const inactiveDrivers = drivers.filter((d) => !d.isActive);
 
     if (activeDrivers.length > 0) {
       await flowDynamic(`✅ **ACTIVOS (${activeDrivers.length})**`);
-      
+
       for (const driver of activeDrivers) {
         const message = `👤 ${driver.name}\n🚗 ${driver.plate}\n📱 ${driver.phone}\n✅ DISPONIBLE`;
         await flowDynamic(message);
@@ -461,7 +470,7 @@ export const driverListFlow = addKeyword<BaileysProvider, MemoryDB>([
 
     if (inactiveDrivers.length > 0) {
       await flowDynamic(`⏸️ **INACTIVOS (${inactiveDrivers.length})**`);
-      
+
       for (const driver of inactiveDrivers) {
         const message = `👤 ${driver.name}\n🚗 ${driver.plate}\n📱 ${driver.phone}\n⏸️ NO DISPONIBLE`;
         await flowDynamic(message);
@@ -469,11 +478,14 @@ export const driverListFlow = addKeyword<BaileysProvider, MemoryDB>([
       }
     }
 
-    await flowDynamic("📱 Para actualizar tu estado: escribe 'activo' o 'inactivo'");
-
+    await flowDynamic(
+      "📱 Para actualizar tu estado: escribe 'activo' o 'inactivo'"
+    );
   } catch (error) {
     console.error("Error in driverListFlow:", error);
-    await flowDynamic("❌ Error del sistema al obtener la lista de conductores");
+    await flowDynamic(
+      "❌ Error del sistema al obtener la lista de conductores"
+    );
   }
 });
 
@@ -498,7 +510,7 @@ export const driverHelpFlow = addKeyword<BaileysProvider, MemoryDB>([
     const driver = driverResult.data;
     const status = driver.isActive ? "ACTIVO ✅" : "INACTIVO ⏸️";
 
-              await flowDynamic("🚕 Comandos para Conductores:");
+    await flowDynamic("🚕 Comandos para Conductores:");
     await flowDynamic("📋 Comandos principales:");
     await flowDynamic("• '1' - Aceptar carrera disponible");
     await flowDynamic("• 'ubicacion' - Actualizar tu ubicación");
@@ -511,6 +523,8 @@ export const driverHelpFlow = addKeyword<BaileysProvider, MemoryDB>([
     console.log(`📚 Driver help shown to: ${driver.name} (${driver.phone})`);
   } catch (error) {
     console.error("Error in driver help flow:", error);
-    await flowDynamic("🔧 Ha ocurrido un error del sistema. Por favor intenta nuevamente.");
+    await flowDynamic(
+      "🔧 Ha ocurrido un error del sistema. Por favor intenta nuevamente."
+    );
   }
 });
