@@ -32,6 +32,7 @@ import {
 import {
   taxiFlow,
   taxiLocationFlow,
+  debugAllEventsFlow,
   taxiAssignedFlow,
   cancelRequestFlow,
   statusFlow,
@@ -118,6 +119,9 @@ const main = async () => {
 
     // Crear flujo principal
     const adapterFlow = createFlow([
+      // DEBUG: Flujo para capturar todos los eventos
+      debugAllEventsFlow, // TEMPORAL: Para debuggear eventos de ubicación
+      
       // Flujos críticos que deben tener máxima prioridad
       welcomeFlow,
       taxiAssignedFlow, // CRÍTICO: Limpiar estado cuando se asigna taxi

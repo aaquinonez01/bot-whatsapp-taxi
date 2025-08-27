@@ -30,7 +30,116 @@ export const taxiAssignedFlow = addKeyword<BaileysProvider, MemoryDB>([
 // ELIMINADO postTimeoutFlow que causaba conflictos con driverAcceptFlow
 // La lógica de timeout se maneja ahora en welcomeFlow y mainFlow
 
-// DebugAllEventsFlow removido - causaba procesamiento duplicado de ubicaciones
+// Flujo que detecta y procesa ubicaciones GPS directamente
+export const debugAllEventsFlow = addKeyword<BaileysProvider, MemoryDB>(
+  EVENTS.WELCOME
+).addAction(async (ctx, { flowDynamic, state }) => {
+  // Verificar si es ubicación GPS PRIMERO
+  const locationMessage = ctx.message?.locationMessage;
+
+  if (locationMessage) {
+    // Verificar si el usuario está esperando ubicación
+    const clientName = state.get("clientName");
+
+    if (clientName) {
+      console.log("🎯 ===== PROCESANDO UBICACIÓN GPS DIRECTAMENTE =====");
+
+      // Procesar la ubicación GPS aquí mismo
+      const latitude = locationMessage.degreesLatitude;
+      const longitude = locationMessage.degreesLongitude;
+      const name = locationMessage.name || "Ubicación compartida";
+      const address = locationMessage.address || `${latitude}, ${longitude}`;
+
+      // Geocodificación automática
+      let detectedSector = "Ubicación GPS";
+
+      try {
+        // await flowDynamic("🔍 Detectando sector automáticamente...");
+
+        if (!geocodingService) {
+          throw new Error("geocodingService no está disponible");
+        }
+
+        const sector = await geocodingService.getSectorFromCoordinates(
+          latitude,
+          longitude
+        );
+        detectedSector = sector;
+
+        await flowDynamic(`🏘️ Sector detectado:* ${detectedSector}*`);
+      } catch (error) {
+        console.error("❌ ERROR EN GEOCODIFICACIÓN:", error);
+        console.error("❌ Error stack:", error.stack);
+        console.error("❌ Error message:", error.message);
+        await flowDynamic("⚠️ No se pudo detectar el sector automáticamente");
+      }
+
+      // Crear solicitud de taxi
+      const locationData = {
+        type: "whatsapp_location",
+        latitude,
+        longitude,
+        name,
+        address,
+        formatted: `${name} - ${address}`,
+      };
+
+      const clientPhone = ctx.from;
+
+      await state.update({
+        clientLocation: locationData.formatted,
+        clientLocationData: locationData,
+        clientPhone: clientPhone,
+      });
+
+      const requestResult = await requestService.createTaxiRequest({
+        clientName,
+        clientPhone,
+        location: locationData.formatted,
+        sector: detectedSector,
+        locationData: locationData as LocationData,
+      });
+
+      if (!requestResult.success) {
+        await flowDynamic(`❌ ${requestResult.error}`);
+        return;
+      }
+
+      const request = requestResult.data!;
+      console.log("✅ SOLICITUD CREADA:", request.id);
+
+      await state.update({
+        requestId: request.id,
+        isWaitingForDriver: true,
+      });
+
+      const notificationResult =
+        await notificationService.sendToAllActiveDrivers(request);
+
+      if (notificationResult.sent === 0) {
+        await flowDynamic("❌ No hay conductores disponibles en este momento");
+        await requestService.cancelRequest(
+          request.id,
+          "No hay conductores disponibles"
+        );
+        await state.clear();
+        return;
+      }
+
+      await flowDynamic(
+        `🔍 Buscando taxi disponible...\n✅ Se notificó a ${notificationResult.sent} conductores disponibles.\n⏳ Esperando respuesta de los conductores (máximo 20 segundos)...`
+      );
+
+      console.log(`✅ UBICACIÓN GPS PROCESADA COMPLETAMENTE: ${request.id}`);
+
+      // Terminar aquí para que no siga a otros flujos
+      return;
+    }
+  }
+
+  // No interferir con otros mensajes normales
+  return;
+});
 
 // Flujo para manejar ubicación de WhatsApp
 export const taxiLocationFlow = addKeyword<BaileysProvider, MemoryDB>(
@@ -76,6 +185,8 @@ export const taxiLocationFlow = addKeyword<BaileysProvider, MemoryDB>(
     let detectedSector = "Ubicación GPS"; // Fallback por defecto
 
     try {
+      // await flowDynamic("🔍 Detectando sector automáticamente...");
+
       const sector = await geocodingService.getSectorFromCoordinates(
         latitude,
         longitude
@@ -86,9 +197,6 @@ export const taxiLocationFlow = addKeyword<BaileysProvider, MemoryDB>(
       console.error("❌ ERROR EN GEOCODIFICACIÓN:", error);
       await flowDynamic("⚠️ No se pudo detectar el sector automáticamente");
     }
-
-    // Mostrar mensaje de búsqueda INMEDIATAMENTE después de geocodificación
-    await flowDynamic(`🔍 Buscando taxi disponible...`);
 
     console.log("🎯 GEOCODIFICACIÓN COMPLETADA, CONTINUANDO...");
 
@@ -169,9 +277,9 @@ export const taxiLocationFlow = addKeyword<BaileysProvider, MemoryDB>(
         return;
       }
 
-      // Mensaje de notificación y espera (búsqueda ya se mostró arriba)
+      // Mensaje combinado: búsqueda, notificación y espera
       await flowDynamic(
-        `✅ Se notificó a ${notificationResult.sent} conductores disponibles.\n⏳ Esperando respuesta de los conductores (máximo 20 segundos)...`
+        `🔍 Buscando taxi disponible...\n✅ Se notificó a ${notificationResult.sent} conductores disponibles.\n⏳ Esperando respuesta de los conductores (máximo 20 segundos)...`
       );
 
       // Configurar timeout de 20 segundos
@@ -249,7 +357,7 @@ let notificationService: NotificationService;
 let driverService: DriverService;
 let geocodingService: GeocodingService;
 
-// Función helper para procesar datos de ubicación CON mensaje de búsqueda
+// Función helper para procesar datos de ubicación
 async function processLocationData(
   locationData: LocationData,
   ctx: any,
@@ -262,9 +370,6 @@ async function processLocationData(
     const clientPhone = ctx.from;
 
     console.log(`👤 Client: ${clientName}, Phone: ${clientPhone}`);
-
-    // Mostrar mensaje de búsqueda INMEDIATAMENTE
-    await flowDynamic(`🔍 Buscando taxi disponible...`);
 
     // Guardar ubicación en estado
     await state.update({
@@ -332,9 +437,9 @@ async function processLocationData(
       return;
     }
 
-    // Mensaje de notificación y espera (búsqueda ya se mostró antes)
+    // Mensaje combinado: búsqueda, notificación y espera
     await flowDynamic(
-      `✅ Se notificó a ${notificationResult.sent} conductores disponibles.\n⏳ Esperando respuesta de los conductores (máximo 20 segundos)...`
+      `🔍 Buscando taxi disponible...\n✅ Se notificó a ${notificationResult.sent} conductores disponibles.\n⏳ Esperando respuesta de los conductores (máximo 20 segundos)...`
     );
 
     // Configurar timeout de 20 segundos
@@ -393,156 +498,6 @@ async function processLocationData(
     );
   } catch (error) {
     console.error("Error in processLocationData:", error);
-    await flowDynamic(MESSAGES.ERRORS.SYSTEM_ERROR);
-
-    // En caso de error, también detener el timer
-    IdleCustom.stop(ctx);
-  }
-}
-
-// Función helper para procesar datos de ubicación SIN mensaje de búsqueda
-async function processLocationDataWithoutSearch(
-  locationData: LocationData,
-  ctx: any,
-  state: any,
-  flowDynamic: any,
-  sector?: string
-) {
-  try {
-    const clientName = state.get("clientName");
-    const clientPhone = ctx.from;
-
-    console.log(`👤 Client: ${clientName}, Phone: ${clientPhone}`);
-
-    // NO mostrar mensaje de búsqueda aquí - ya se mostró antes
-
-    // Guardar ubicación en estado
-    await state.update({
-      clientLocation: locationData.formatted,
-      clientLocationData: locationData,
-      clientPhone: clientPhone,
-    });
-
-    // Crear solicitud de taxi CON SECTOR
-    const requestPayload = {
-      clientName,
-      clientPhone,
-      location: locationData.formatted,
-      sector: sector || "Ubicación GPS", // 🆕 Usar sector detectado
-      locationData: locationData,
-    };
-
-    const requestResult = await requestService.createTaxiRequest(
-      requestPayload
-    );
-
-    if (!requestResult.success) {
-      await flowDynamic(`❌ ${requestResult.error}`);
-      return;
-    }
-
-    const request = requestResult.data!;
-
-    // IMPORTANTE: Adjuntar locationData al request ya que no se guarda en DB
-    request.locationData = locationData;
-
-    console.log(
-      "🗺️ Request with locationData:",
-      JSON.stringify(
-        {
-          id: request.id,
-          location: request.location,
-          locationData: request.locationData,
-        },
-        null,
-        2
-      )
-    );
-
-    // Guardar ID de solicitud en estado y marcar como esperando
-    await state.update({
-      requestId: request.id,
-      isWaitingForDriver: true,
-    });
-
-    // Notificar a todos los conductores activos
-    const notificationResult = await notificationService.sendToAllActiveDrivers(
-      request
-    );
-
-    if (notificationResult.sent === 0) {
-      // No hay conductores disponibles
-      await flowDynamic(MESSAGES.TAXI.NO_DRIVERS_AVAILABLE);
-
-      // Cancelar la solicitud automáticamente
-      await requestService.cancelRequest(
-        request.id,
-        "No hay conductores disponibles"
-      );
-      return;
-    }
-
-    // Mensaje de notificación y espera (búsqueda ya se mostró antes)
-    await flowDynamic(
-      `✅ Se notificó a ${notificationResult.sent} conductores disponibles.\n⏳ Esperando respuesta de los conductores (máximo 20 segundos)...`
-    );
-
-    // Configurar timeout de 20 segundos
-    const timeoutId = setTimeout(async () => {
-      try {
-        // Verificar si la solicitud sigue pendiente
-        const currentRequest = await requestService.getRequestById(request.id);
-
-        if (
-          currentRequest.success &&
-          currentRequest.data?.status === "PENDING"
-        ) {
-          // Cancelar la solicitud
-          await requestService.cancelRequest(
-            request.id,
-            "Timeout - ningún conductor aceptó en 20 segundos"
-          );
-
-          // Marcar que hubo timeout y limpiar resto del estado
-          await state.clear();
-          await state.update({ hadTimeout: true });
-
-          // Enviar mensaje de timeout y menú
-          try {
-            await flowDynamic(
-              "⏰ Ningún conductor ha aceptado tu solicitud en este momento."
-            );
-            await flowDynamic([MESSAGES.GREETING, MESSAGES.MENU].join("\n\n"));
-          } catch (flowError) {
-            console.error(
-              "Error sending timeout message via flowDynamic:",
-              flowError
-            );
-            // Fallback: usar notificationService
-            await notificationService.sendToClient(
-              clientPhone,
-              "⏰ Ningún conductor ha aceptado tu solicitud en este momento.\n\n" +
-                MESSAGES.GREETING +
-                "\n\n" +
-                MESSAGES.MENU
-            );
-          }
-        }
-      } catch (error) {
-        console.error("Error in timeout handler:", error);
-      }
-    }, 20000); // 20 segundos
-
-    // Guardar el timeout ID en el estado
-    await state.update({ timeoutId: timeoutId });
-
-    // Detener el timer de inactividad ya que el proceso se completó exitosamente
-    IdleCustom.stop(ctx);
-    console.log(
-      `⏹️ Timer de inactividad detenido para usuario ${ctx.from} - solicitud creada exitosamente`
-    );
-  } catch (error) {
-    console.error("Error in processLocationDataWithoutSearch:", error);
     await flowDynamic(MESSAGES.ERRORS.SYSTEM_ERROR);
 
     // En caso de error, también detener el timer
@@ -667,13 +622,51 @@ export const taxiFlow = addKeyword<BaileysProvider, MemoryDB>(
             // await flowDynamic(`📍 Dirección: ${address}`);
           }
 
-          // NOTA: La ubicación GPS ya debería haber sido procesada por taxiLocationFlow
-          // Si llegamos aquí, significa que taxiLocationFlow no la capturó correctamente
-          console.log("⚠️ taxiFlow procesando ubicación GPS - debería ser capturada por taxiLocationFlow");
-          
-          // Redirigir al flujo correcto mencionando que se use el botón de ubicación
-          await flowDynamic("❌ La ubicación no se procesó correctamente.");
-          await flowDynamic("📍 Por favor, envía tu ubicación usando el botón de ubicación de WhatsApp nuevamente.");
+          // 🆕 GEOCODIFICACIÓN AUTOMÁTICA CON GOOGLE MAPS
+          let detectedSector = "Ubicación GPS";
+
+          try {
+            // await flowDynamic("🔍 Detectando sector automáticamente...");
+
+            console.log("🔥 LLAMANDO A GEOCODING SERVICE...");
+            if (!geocodingService) {
+              throw new Error("geocodingService no está disponible");
+            }
+
+            const sector = await geocodingService.getSectorFromCoordinates(
+              latitude,
+              longitude
+            );
+            detectedSector = sector;
+
+            await flowDynamic(`🏘️ Sector detectado: ${detectedSector}`);
+          } catch (error) {
+            console.error("❌ ERROR EN GEOCODIFICACIÓN:", error);
+            console.error("❌ Error stack:", error.stack);
+            console.error("❌ Error message:", error.message);
+            await flowDynamic(
+              "⚠️ No se pudo detectar el sector automáticamente"
+            );
+          }
+
+          // Crear formato de ubicación que incluye coordenadas y texto
+          const locationData = {
+            type: "whatsapp_location" as const,
+            latitude,
+            longitude,
+            name,
+            address,
+            formatted: `${name} - ${address}`,
+          };
+
+          // Continuar con el procesamiento usando los datos de ubicación CON SECTOR
+          await processLocationData(
+            locationData,
+            ctx,
+            state,
+            flowDynamic,
+            detectedSector
+          );
           return;
         } else {
           // Intentar buscar en otras propiedades posibles
@@ -709,11 +702,8 @@ export const taxiFlow = addKeyword<BaileysProvider, MemoryDB>(
       // Crear LocationData para direcciones de texto
       const locationData = ValidationUtils.createLocationData(location);
 
-      // Mostrar mensaje de búsqueda inmediatamente para direcciones de texto también
-      await flowDynamic(`🔍 Buscando taxi disponible...`);
-
-      // Usar función helper para procesar la ubicación (sin mostrar búsqueda de nuevo)
-      await processLocationDataWithoutSearch(locationData, ctx, state, flowDynamic);
+      // Usar función helper para procesar la ubicación
+      await processLocationData(locationData, ctx, state, flowDynamic);
     }
   );
 
