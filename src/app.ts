@@ -15,6 +15,10 @@ import { RequestService } from "./services/request.service.js";
 import { NotificationService } from "./services/notification.service.js";
 import { GeocodingService } from "./services/geocoding.service.js";
 
+// Utils
+import { PerformanceMonitor } from "./utils/performance-monitor.js";
+import { ResourceMonitor } from "./utils/resource-monitor.js";
+
 // Flujos
 import {
   mainFlow,
@@ -72,9 +76,11 @@ const main = async () => {
     // Inicializar servicios
     const driverService = new DriverService();
     const requestService = new RequestService();
-    const notificationService = new NotificationService(adapterProvider);
+    const performanceMonitor = new PerformanceMonitor();
+    const resourceMonitor = new ResourceMonitor();
+    const notificationService = new NotificationService(adapterProvider, performanceMonitor);
     const geocodingService = new GeocodingService(config.googleMaps.apiKey);
-    console.log("✅ Servicios inicializados");
+    console.log("✅ Servicios inicializados para VPS (2 CPUs, 8GB RAM)");
 
     // Configurar servicios en flujos
     setTaxiFlowServices(requestService, notificationService, driverService, geocodingService);

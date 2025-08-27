@@ -1,16 +1,20 @@
 import { BaileysProvider } from "@builderbot/provider-baileys";
 import { DriverService } from "./driver.service.js";
 import { ValidationUtils } from "../utils/validation.js";
+import { ConnectionManager } from "../utils/connection-manager.js";
 import { NotificationResult, TaxiRequest, Driver, LocationData } from "../types/index.js";
 import { MESSAGES } from "../constants/messages.js";
+import { config } from "../config/environments.js";
 
 export class NotificationService {
   private provider: BaileysProvider;
   private driverService: DriverService;
+  private connectionManager: ConnectionManager;
 
-  constructor(provider: BaileysProvider) {
+  constructor(provider: BaileysProvider, performanceMonitor?: any) {
     this.provider = provider;
     this.driverService = new DriverService();
+    this.connectionManager = new ConnectionManager(provider, performanceMonitor);
   }
 
   async sendToAllActiveDrivers(
@@ -53,67 +57,12 @@ export class NotificationService {
         request.id
       );
 
-      let sent = 0;
-      let failed = 0;
-      const errors: string[] = [];
-
-      // Enviar notificación a cada conductor
-      for (const driver of drivers) {
-        try {
-          const formattedPhone = ValidationUtils.formatPhoneForWhatsApp(
-            driver.phone
-          );
-
-          // Si hay locationData de WhatsApp, enviar PRIMERO el mapa
-          if (request.locationData && request.locationData.type === 'whatsapp_location' && 
-              request.locationData.latitude && request.locationData.longitude) {
-            
-            console.log(`🗺️ SENDING LOCATION MAP FIRST to driver ${driver.name} (${driver.phone})`);
-            console.log(`📍 Coordinates: ${request.locationData.latitude}, ${request.locationData.longitude}`);
-            console.log(`📍 Name: ${request.locationData.name}`);
-            console.log(`📍 Address: ${request.locationData.address}`);
-            
-            // Enviar ubicación como mapa PRIMERO
-            const locationPayload = {
-              location: {
-                degreesLatitude: request.locationData.latitude,
-                degreesLongitude: request.locationData.longitude,
-                name: request.locationData.name || "Ubicación del cliente",
-                address: request.locationData.address || ""
-              }
-            };
-            
-            console.log(`📤 Location payload:`, JSON.stringify(locationPayload, null, 2));
-            
-            try {
-              await this.provider.vendor.sendMessage(formattedPhone, locationPayload);
-              console.log(`✅ Location map sent successfully to ${driver.phone}`);
-              
-              // Pequeño delay para asegurar que el mapa se envíe antes del mensaje
-              await new Promise(resolve => setTimeout(resolve, 1000));
-            } catch (locationError) {
-              console.error(`❌ Error sending location map to ${driver.phone}:`, locationError);
-            }
-          } else {
-            console.log(`📍 No location data to send as map for driver ${driver.phone}`);
-            if (request.locationData) {
-              console.log(`📍 LocationData type: ${request.locationData.type}`);
-              console.log(`📍 Has coordinates: lat=${!!request.locationData.latitude}, lng=${!!request.locationData.longitude}`);
-            }
-          }
-
-          // Enviar mensaje de solicitud AL FINAL para que sea el último contexto
-          await this.provider.sendMessage(formattedPhone, message, {});
-
-          sent++;
-        } catch (error) {
-          failed++;
-          console.error(`Error sending to driver ${driver.phone}:`, error);
-          errors.push(`Error enviando a ${driver.name} (${driver.phone})`);
-        }
+      // Usar envío paralelo si está habilitado
+      if (config.performance.enableParallelNotifications) {
+        return await this.sendNotificationsInParallel(drivers, request, message);
+      } else {
+        return await this.sendNotificationsSequentially(drivers, request, message);
       }
-
-      return { sent, failed, errors: errors.length > 0 ? errors : undefined };
     } catch (error) {
       console.error("Error in sendToAllActiveDrivers:", error);
       return {
@@ -121,6 +70,176 @@ export class NotificationService {
         failed: 0,
         errors: ["Error interno en el servicio de notificaciones"],
       };
+    }
+  }
+
+  private async sendNotificationsInParallel(
+    drivers: Driver[], 
+    request: TaxiRequest, 
+    message: string
+  ): Promise<NotificationResult> {
+    console.log(`🚀 Enviando notificaciones en paralelo a ${drivers.length} conductores (VPS: 2 CPUs, 8GB RAM)`);
+    
+    let totalSent = 0;
+    let totalFailed = 0;
+    const allErrors: string[] = [];
+
+    // Con 2 CPUs, podemos procesar múltiples lotes simultáneamente
+    const maxParallelBatches = config.performance.maxParallelBatches || 2;
+    const batchSize = config.performance.batchSize;
+    
+    // Dividir todos los conductores en grupos de lotes
+    const allBatches: Driver[][] = [];
+    for (let i = 0; i < drivers.length; i += batchSize) {
+      allBatches.push(drivers.slice(i, i + batchSize));
+    }
+
+    console.log(`📊 Configuración optimizada para VPS: ${allBatches.length} lotes, ${maxParallelBatches} lotes simultáneos`);
+
+    // Procesar lotes en grupos paralelos
+    for (let i = 0; i < allBatches.length; i += maxParallelBatches) {
+      const batchGroup = allBatches.slice(i, i + maxParallelBatches);
+      console.log(`🔄 Procesando grupo ${Math.floor(i/maxParallelBatches) + 1}/${Math.ceil(allBatches.length/maxParallelBatches)} (${batchGroup.length} lotes simultáneos)`);
+
+      // Procesar lotes del grupo en paralelo
+      const batchPromises = batchGroup.map(async (batch, batchIndex) => {
+        const actualBatchNumber = i + batchIndex + 1;
+        console.log(`📦 Lote ${actualBatchNumber}: Procesando ${batch.length} conductores`);
+
+        // Enviar mensajes del lote en paralelo
+        const promises = batch.map(driver => this.sendToSingleDriver(driver, request, message));
+        const results = await Promise.allSettled(promises);
+
+        let batchSent = 0;
+        let batchFailed = 0;
+        const batchErrors: string[] = [];
+
+        results.forEach((result, index) => {
+          if (result.status === 'fulfilled' && result.value.success) {
+            batchSent++;
+          } else {
+            batchFailed++;
+            const driverName = batch[index].name;
+            const error = result.status === 'rejected' ? result.reason : result.value.error;
+            batchErrors.push(`Error enviando a ${driverName}: ${error}`);
+          }
+        });
+
+        console.log(`✅ Lote ${actualBatchNumber} completado: ${batchSent}/${batch.length} enviados`);
+        return { sent: batchSent, failed: batchFailed, errors: batchErrors };
+      });
+
+      // Esperar que terminen todos los lotes del grupo
+      const batchResults = await Promise.allSettled(batchPromises);
+      
+      // Consolidar resultados
+      batchResults.forEach(result => {
+        if (result.status === 'fulfilled') {
+          totalSent += result.value.sent;
+          totalFailed += result.value.failed;
+          allErrors.push(...result.value.errors);
+        }
+      });
+
+      // Delay entre grupos de lotes si no es el último grupo
+      if (i + maxParallelBatches < allBatches.length) {
+        console.log(`⏳ Esperando ${config.performance.batchDelay}ms antes del siguiente grupo de lotes...`);
+        await new Promise(resolve => setTimeout(resolve, config.performance.batchDelay));
+      }
+    }
+
+    console.log(`✅ Envío paralelo optimizado completado: ${totalSent} enviados, ${totalFailed} fallidos`);
+    console.log(`📈 Rendimiento: ${drivers.length} conductores procesados con 2 CPUs en ${Math.ceil(allBatches.length/maxParallelBatches)} grupos`);
+    
+    return {
+      sent: totalSent,
+      failed: totalFailed,
+      errors: allErrors.length > 0 ? allErrors : undefined
+    };
+  }
+
+  private async sendNotificationsSequentially(
+    drivers: Driver[], 
+    request: TaxiRequest, 
+    message: string
+  ): Promise<NotificationResult> {
+    console.log(`🐌 Enviando notificaciones secuencialmente a ${drivers.length} conductores`);
+    
+    let sent = 0;
+    let failed = 0;
+    const errors: string[] = [];
+
+    for (const driver of drivers) {
+      const result = await this.sendToSingleDriver(driver, request, message);
+      if (result.success) {
+        sent++;
+      } else {
+        failed++;
+        errors.push(`Error enviando a ${driver.name}: ${result.error}`);
+      }
+    }
+
+    console.log(`✅ Envío secuencial completado: ${sent} enviados, ${failed} fallidos`);
+    return {
+      sent,
+      failed,
+      errors: errors.length > 0 ? errors : undefined
+    };
+  }
+
+  private async sendToSingleDriver(
+    driver: Driver, 
+    request: TaxiRequest, 
+    message: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      const formattedPhone = ValidationUtils.formatPhoneForWhatsApp(driver.phone);
+
+      // Si hay locationData de WhatsApp, enviar PRIMERO el mapa
+      if (request.locationData && request.locationData.type === 'whatsapp_location' && 
+          request.locationData.latitude && request.locationData.longitude) {
+        
+        console.log(`🗺️ SENDING LOCATION MAP FIRST to driver ${driver.name} (${driver.phone})`);
+        
+        const locationPayload = {
+          location: {
+            degreesLatitude: request.locationData.latitude,
+            degreesLongitude: request.locationData.longitude,
+            name: request.locationData.name || "Ubicación del cliente",
+            address: request.locationData.address || ""
+          }
+        };
+        
+        // Usar ConnectionManager para enviar con retry
+        const locationSent = await this.connectionManager.sendVendorMessageWithRetry(
+          formattedPhone, 
+          locationPayload
+        );
+        
+        if (!locationSent) {
+          console.warn(`⚠️ Failed to send location map to ${driver.phone}, continuing with message...`);
+        }
+        
+        // Pequeño delay para asegurar que el mapa se envíe antes del mensaje
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+
+      // Enviar mensaje de solicitud usando ConnectionManager con retry
+      const messageSent = await this.connectionManager.sendMessageWithRetry(
+        formattedPhone, 
+        message, 
+        {}
+      );
+
+      if (messageSent) {
+        console.log(`✅ Message sent successfully to ${driver.name} (${driver.phone})`);
+        return { success: true };
+      } else {
+        return { success: false, error: "Failed to send after retries" };
+      }
+    } catch (error) {
+      console.error(`❌ Error sending to driver ${driver.phone}:`, error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   }
 
