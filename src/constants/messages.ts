@@ -25,7 +25,7 @@ Espero que tengas un buen día. Estaré pendiente de todas las solicitudes de lo
     CLIENT_CANCELLATION_EXPIRED: "⏰ Ya no puede cancelar este taxi. El tiempo límite de 5 minutos ha expirado.",
     
     DRIVER_NOTIFICATION: (clientName: string, location: string, requestId: string) => 
-      `🚕 Nueva solicitud de taxi:\n👤 Cliente: ${clientName}\n📍 Ubicación: ${location}\n\n1️⃣ Presiona "1" para aceptar esta carrera`,
+      `🚕 Nueva solicitud de taxi:\n👤 Cliente: *${clientName}*\n📍 Ubicación: *${location}*\n\n1️⃣ Presiona "1" para aceptar esta carrera`,
     
     DRIVER_ACCEPTED: "✅ ¡Carrera asignada! El cliente recibirá tu información.",
     

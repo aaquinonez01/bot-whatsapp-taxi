@@ -253,7 +253,7 @@ export const driverRegisterFlow = addKeyword<BaileysProvider, MemoryDB>([
           `📱 Teléfono: ${ValidationUtils.cleanPhoneNumber(driverPhone)}`
         );
         if (driverLocation) {
-          await flowDynamic(`📍 Ubicación: **${driverLocation}**`);
+          await flowDynamic(`📍 Ubicación: *${driverLocation}*`);
         }
         await flowDynamic(
           '\n🚕 Ya puedes aceptar carreras presionando "1" cuando lleguen solicitudes.'
@@ -450,7 +450,7 @@ export const driverListFlow = addKeyword<BaileysProvider, MemoryDB>([
     }
 
     // Crear mensaje con la lista de conductores
-    await flowDynamic("🚕 **LISTA DE TAXISTAS**");
+    await flowDynamic("🚕 *LISTA DE TAXISTAS*");
     await flowDynamic(`📊 Total: ${drivers.length} conductores`);
     await flowDynamic("──────────────────────");
 
@@ -459,7 +459,7 @@ export const driverListFlow = addKeyword<BaileysProvider, MemoryDB>([
     const inactiveDrivers = drivers.filter((d) => !d.isActive);
 
     if (activeDrivers.length > 0) {
-      await flowDynamic(`✅ **ACTIVOS (${activeDrivers.length})**`);
+      await flowDynamic(`✅ *ACTIVOS (${activeDrivers.length})*`);
 
       for (const driver of activeDrivers) {
         const message = `👤 ${driver.name}\n🚗 ${driver.plate}\n📱 ${driver.phone}\n✅ DISPONIBLE`;
@@ -469,7 +469,7 @@ export const driverListFlow = addKeyword<BaileysProvider, MemoryDB>([
     }
 
     if (inactiveDrivers.length > 0) {
-      await flowDynamic(`⏸️ **INACTIVOS (${inactiveDrivers.length})**`);
+      await flowDynamic(`⏸️ *INACTIVOS (${inactiveDrivers.length})*`);
 
       for (const driver of inactiveDrivers) {
         const message = `👤 ${driver.name}\n🚗 ${driver.plate}\n📱 ${driver.phone}\n⏸️ NO DISPONIBLE`;
