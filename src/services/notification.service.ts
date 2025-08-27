@@ -57,11 +57,34 @@ export class NotificationService {
         request.id
       );
 
-      // Usar envío paralelo si está habilitado
-      if (config.performance.enableParallelNotifications) {
-        return await this.sendNotificationsInParallel(drivers, request, message);
+      // 🚀 PRE-PROCESAR UBICACIÓN UNA SOLA VEZ (Optimización crítica)
+      let locationPayload: any = null;
+      
+      if (request.locationData && request.locationData.type === 'whatsapp_location' && 
+          request.locationData.latitude && request.locationData.longitude) {
+        
+        console.log(`🔧 Pre-procesando ubicación UNA SOLA VEZ para ${drivers.length} conductores`);
+        console.log(`📍 Coordinates: ${request.locationData.latitude}, ${request.locationData.longitude}`);
+        
+        locationPayload = {
+          location: {
+            degreesLatitude: request.locationData.latitude,
+            degreesLongitude: request.locationData.longitude,
+            name: request.locationData.name || "Ubicación del cliente",
+            address: request.locationData.address || ""
+          }
+        };
+        
+        console.log(`✅ LocationPayload creado una sola vez, se reutilizará para ${drivers.length} conductores`);
       } else {
-        return await this.sendNotificationsSequentially(drivers, request, message);
+        console.log(`📍 No hay location data para enviar como mapa`);
+      }
+
+      // Usar envío paralelo si está habilitado (con payload pre-creado)
+      if (config.performance.enableParallelNotifications) {
+        return await this.sendNotificationsInParallel(drivers, request, message, locationPayload);
+      } else {
+        return await this.sendNotificationsSequentially(drivers, request, message, locationPayload);
       }
     } catch (error) {
       console.error("Error in sendToAllActiveDrivers:", error);
@@ -76,9 +99,14 @@ export class NotificationService {
   private async sendNotificationsInParallel(
     drivers: Driver[], 
     request: TaxiRequest, 
-    message: string
+    message: string,
+    locationPayload?: any
   ): Promise<NotificationResult> {
     console.log(`🚀 Enviando notificaciones en paralelo a ${drivers.length} conductores (VPS: 2 CPUs, 8GB RAM)`);
+    
+    if (locationPayload) {
+      console.log(`⚡ OPTIMIZACIÓN: Usando locationPayload PRE-CREADO para ${drivers.length} conductores`);
+    }
     
     let totalSent = 0;
     let totalFailed = 0;
@@ -106,8 +134,8 @@ export class NotificationService {
         const actualBatchNumber = i + batchIndex + 1;
         console.log(`📦 Lote ${actualBatchNumber}: Procesando ${batch.length} conductores`);
 
-        // Enviar mensajes del lote en paralelo
-        const promises = batch.map(driver => this.sendToSingleDriver(driver, request, message));
+        // Enviar mensajes del lote en paralelo (con locationPayload pre-creado)
+        const promises = batch.map(driver => this.sendToSingleDriver(driver, request, message, locationPayload));
         const results = await Promise.allSettled(promises);
 
         let batchSent = 0;
@@ -161,16 +189,21 @@ export class NotificationService {
   private async sendNotificationsSequentially(
     drivers: Driver[], 
     request: TaxiRequest, 
-    message: string
+    message: string,
+    locationPayload?: any
   ): Promise<NotificationResult> {
     console.log(`🐌 Enviando notificaciones secuencialmente a ${drivers.length} conductores`);
+    
+    if (locationPayload) {
+      console.log(`⚡ OPTIMIZACIÓN: Usando locationPayload PRE-CREADO para ${drivers.length} conductores (secuencial)`);
+    }
     
     let sent = 0;
     let failed = 0;
     const errors: string[] = [];
 
     for (const driver of drivers) {
-      const result = await this.sendToSingleDriver(driver, request, message);
+      const result = await this.sendToSingleDriver(driver, request, message, locationPayload);
       if (result.success) {
         sent++;
       } else {
@@ -190,18 +223,35 @@ export class NotificationService {
   private async sendToSingleDriver(
     driver: Driver, 
     request: TaxiRequest, 
-    message: string
+    message: string,
+    locationPayload?: any
   ): Promise<{ success: boolean; error?: string }> {
     try {
       const formattedPhone = ValidationUtils.formatPhoneForWhatsApp(driver.phone);
 
-      // Si hay locationData de WhatsApp, enviar PRIMERO el mapa
-      if (request.locationData && request.locationData.type === 'whatsapp_location' && 
-          request.locationData.latitude && request.locationData.longitude) {
+      // 🚀 OPTIMIZACIÓN: Usar locationPayload pre-creado si está disponible
+      if (locationPayload) {
+        console.log(`⚡ OPTIMIZADO: Enviando mapa PRE-CREADO a ${driver.name} (${driver.phone})`);
         
-        console.log(`🗺️ SENDING LOCATION MAP FIRST to driver ${driver.name} (${driver.phone})`);
+        // Usar ConnectionManager para enviar con retry
+        const locationSent = await this.connectionManager.sendVendorMessageWithRetry(
+          formattedPhone, 
+          locationPayload
+        );
         
-        const locationPayload = {
+        if (!locationSent) {
+          console.warn(`⚠️ Failed to send location map to ${driver.phone}, continuing with message...`);
+        }
+        
+        // Pequeño delay para asegurar que el mapa se envíe antes del mensaje
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } else if (request.locationData && request.locationData.type === 'whatsapp_location' && 
+                 request.locationData.latitude && request.locationData.longitude) {
+        
+        // Fallback: crear payload si no se proporcionó (retrocompatibilidad)
+        console.log(`🔄 FALLBACK: Creando locationPayload para ${driver.name} (${driver.phone})`);
+        
+        const fallbackLocationPayload = {
           location: {
             degreesLatitude: request.locationData.latitude,
             degreesLongitude: request.locationData.longitude,
@@ -213,7 +263,7 @@ export class NotificationService {
         // Usar ConnectionManager para enviar con retry
         const locationSent = await this.connectionManager.sendVendorMessageWithRetry(
           formattedPhone, 
-          locationPayload
+          fallbackLocationPayload
         );
         
         if (!locationSent) {
