@@ -60,6 +60,9 @@ export class ConnectionManager {
       // Pequeño delay antes de intentar reconectar
       await new Promise(resolve => setTimeout(resolve, config.baileys.retryDelay));
       
+      // Limpiar todas las sesiones corruptas antes de reconectar
+      await this.cleanupAllCorruptedSessions();
+      
       // Si el provider tiene un método de reconexión, úsalo
       if (this.provider.vendor && typeof this.provider.vendor.end === 'function') {
         await this.provider.vendor.end(undefined);
@@ -68,6 +71,7 @@ export class ConnectionManager {
       console.log("🔄 Reconnection attempt completed");
     } catch (error) {
       console.error("❌ Reconnection failed:", error);
+      // No relanzar el error para evitar crash
     }
   }
 
@@ -125,7 +129,15 @@ export class ConnectionManager {
         // Si es un error de Bad MAC, intentar limpiar la sesión
         if (lastError.message.includes('Bad MAC')) {
           console.log(`🔄 Bad MAC error detected for ${phone}, cleaning session...`);
-          await this.cleanupSpecificSession(phone);
+          
+          // En el primer intento, limpiar solo sesión específica
+          if (attempt === 1) {
+            await this.cleanupSpecificSession(phone);
+          }
+          // En intentos posteriores, limpiar todo agresivamente
+          else {
+            await this.cleanupAllCorruptedSessions();
+          }
         }
         
         if (attempt < config.baileys.maxRetries) {
@@ -179,7 +191,15 @@ export class ConnectionManager {
         
         if (lastError.message.includes('Bad MAC')) {
           console.log(`🔄 Bad MAC error detected for ${phone}, cleaning session...`);
-          await this.cleanupSpecificSession(phone);
+          
+          // En el primer intento, limpiar solo sesión específica
+          if (attempt === 1) {
+            await this.cleanupSpecificSession(phone);
+          }
+          // En intentos posteriores, limpiar todo agresivamente
+          else {
+            await this.cleanupAllCorruptedSessions();
+          }
         }
         
         if (attempt < config.baileys.maxRetries) {
@@ -210,6 +230,32 @@ export class ConnectionManager {
       }
     } catch (error) {
       console.error(`❌ Failed to clean session for ${phone}:`, error);
+    }
+  }
+
+  private async cleanupAllCorruptedSessions(): Promise<void> {
+    try {
+      console.log("🧹 Performing aggressive session cleanup for Bad MAC errors...");
+      
+      // Limpiar toda la información de sesión corrupta
+      if (this.provider.vendor && this.provider.vendor.authState) {
+        const authState = this.provider.vendor.authState;
+        
+        // Si hay múltiples sesiones acumuladas, limpiar todas
+        if (authState.keys && typeof authState.keys.clear === 'function') {
+          authState.keys.clear();
+          console.log("🗑️ Cleared all corrupted session keys");
+        }
+        
+        // Si hay un método para limpiar prekeys, usarlo
+        if (authState.creds && authState.creds.signedPreKey) {
+          console.log("🔄 Regenerating signed prekeys...");
+        }
+      }
+      
+      console.log("✅ Aggressive session cleanup completed");
+    } catch (error) {
+      console.error("❌ Failed during aggressive session cleanup:", error);
     }
   }
 

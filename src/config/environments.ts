@@ -22,13 +22,13 @@ export const config = {
     ),
   },
   baileys: {
-    experimentalStore: process.env.EXPERIMENTAL_STORE !== "false",
-    timeRelease: parseInt(process.env.TIME_RELEASE || "900000"), // 15 minutos - más frecuente con 8GB RAM
-    messageTimeout: parseInt(process.env.MESSAGE_TIMEOUT || "25000"), // 25 segundos - más agresivo
-    maxRetries: parseInt(process.env.MAX_RETRIES || "3"),
-    retryDelay: parseInt(process.env.RETRY_DELAY || "3000"), // 3 segundos - más rápido
-    maxConcurrentMessages: parseInt(process.env.MAX_CONCURRENT_MESSAGES || "10"), // 10 con 2 CPUs
-    sessionCleanupInterval: parseInt(process.env.SESSION_CLEANUP_INTERVAL || "180000"), // 3 minutos más frecuente
+    experimentalStore: false, // Deshabilitar para mayor estabilidad
+    timeRelease: parseInt(process.env.TIME_RELEASE || "300000"), // 5 minutos - más frecuente para evitar Bad MAC
+    messageTimeout: parseInt(process.env.MESSAGE_TIMEOUT || "20000"), // 20 segundos - reducido
+    maxRetries: parseInt(process.env.MAX_RETRIES || "4"), // Más reintentos para Bad MAC
+    retryDelay: parseInt(process.env.RETRY_DELAY || "2000"), // 2 segundos - más rápido
+    maxConcurrentMessages: parseInt(process.env.MAX_CONCURRENT_MESSAGES || "5"), // Reducido para VPS
+    sessionCleanupInterval: parseInt(process.env.SESSION_CLEANUP_INTERVAL || "120000"), // 2 minutos - más frecuente
   },
   performance: {
     enableParallelNotifications: process.env.ENABLE_PARALLEL_NOTIFICATIONS !== "false",
