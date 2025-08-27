@@ -62,7 +62,7 @@ export class ConnectionManager {
       
       // Si el provider tiene un método de reconexión, úsalo
       if (this.provider.vendor && typeof this.provider.vendor.end === 'function') {
-        await this.provider.vendor.end();
+        await this.provider.vendor.end(undefined);
       }
       
       console.log("🔄 Reconnection attempt completed");
@@ -71,7 +71,7 @@ export class ConnectionManager {
     }
   }
 
-  private async cleanupCorruptedSessions(): void {
+  private async cleanupCorruptedSessions(): Promise<void> {
     try {
       console.log("🧹 Performing session cleanup...");
       
