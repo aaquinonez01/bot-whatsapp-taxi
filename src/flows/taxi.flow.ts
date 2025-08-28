@@ -940,6 +940,8 @@ export const completeRideFlow = addKeyword<BaileysProvider, MemoryDB>([
   "completar",
   "terminar",
   "finalizar",
+  "C",
+  "c"
 ]).addAction(async (ctx, { flowDynamic }) => {
   try {
     const driverPhone = ctx.from;

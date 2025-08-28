@@ -1,7 +1,6 @@
 import { BaileysProvider } from "@builderbot/provider-baileys";
 import { DriverService } from "./driver.service.js";
 import { ValidationUtils } from "../utils/validation.js";
-import { ConnectionManager } from "../utils/connection-manager.js";
 import { NotificationResult, TaxiRequest, Driver, LocationData } from "../types/index.js";
 import { MESSAGES } from "../constants/messages.js";
 import { config } from "../config/environments.js";
@@ -9,12 +8,48 @@ import { config } from "../config/environments.js";
 export class NotificationService {
   private provider: BaileysProvider;
   private driverService: DriverService;
-  private connectionManager: ConnectionManager;
 
-  constructor(provider: BaileysProvider, performanceMonitor?: any) {
+  constructor(provider: BaileysProvider) {
     this.provider = provider;
     this.driverService = new DriverService();
-    this.connectionManager = new ConnectionManager(provider, performanceMonitor);
+  }
+
+  // Método simple de reintento para reemplazar ConnectionManager
+  private async sendWithRetry(phone: string, message: any, options: any = {}, maxRetries = 3): Promise<boolean> {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        await this.provider.sendMessage(phone, message, options);
+        return true;
+      } catch (error) {
+        console.warn(`⚠️ Message send failed to ${phone} (attempt ${attempt}):`, error);
+        if (attempt === maxRetries) {
+          console.error(`❌ Failed to send message to ${phone} after ${maxRetries} attempts`);
+          return false;
+        }
+        // Esperar antes del siguiente intento
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+      }
+    }
+    return false;
+  }
+
+  // Método simple para enviar mensajes de vendor
+  private async sendVendorWithRetry(phone: string, payload: any, maxRetries = 3): Promise<boolean> {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        await this.provider.vendor.sendMessage(phone, payload);
+        return true;
+      } catch (error) {
+        console.warn(`⚠️ Vendor message send failed to ${phone} (attempt ${attempt}):`, error);
+        if (attempt === maxRetries) {
+          console.error(`❌ Failed to send vendor message to ${phone} after ${maxRetries} attempts`);
+          return false;
+        }
+        // Esperar antes del siguiente intento
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+      }
+    }
+    return false;
   }
 
   async sendToAllActiveDrivers(
@@ -233,8 +268,8 @@ export class NotificationService {
       if (locationPayload) {
         console.log(`⚡ OPTIMIZADO: Enviando mapa PRE-CREADO a ${driver.name} (${driver.phone})`);
         
-        // Usar ConnectionManager para enviar con retry
-        const locationSent = await this.connectionManager.sendVendorMessageWithRetry(
+        // Enviar ubicación usando provider nativo
+        const locationSent = await this.sendVendorWithRetry(
           formattedPhone, 
           locationPayload
         );
@@ -260,8 +295,8 @@ export class NotificationService {
           }
         };
         
-        // Usar ConnectionManager para enviar con retry
-        const locationSent = await this.connectionManager.sendVendorMessageWithRetry(
+        // Enviar ubicación usando provider nativo
+        const locationSent = await this.sendVendorWithRetry(
           formattedPhone, 
           fallbackLocationPayload
         );
@@ -274,8 +309,8 @@ export class NotificationService {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
 
-      // Enviar mensaje de solicitud usando ConnectionManager con retry
-      const messageSent = await this.connectionManager.sendMessageWithRetry(
+      // Enviar mensaje de solicitud usando provider nativo
+      const messageSent = await this.sendWithRetry(
         formattedPhone, 
         message, 
         {}

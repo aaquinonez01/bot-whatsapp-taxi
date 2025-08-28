@@ -15,9 +15,6 @@ import { RequestService } from "./services/request.service.js";
 import { NotificationService } from "./services/notification.service.js";
 import { GeocodingService } from "./services/geocoding.service.js";
 
-// Utils
-import { PerformanceMonitor } from "./utils/performance-monitor.js";
-import { ResourceMonitor } from "./utils/resource-monitor.js";
 
 // Flujos
 import {
@@ -91,12 +88,12 @@ const main = async () => {
     validateConfig();
     console.log("✅ Configuración validada");
 
-    // Crear adaptadores con optimización
+    // Crear adaptadores con configuración oficial de BuilderBot
     const adapterProvider = createProvider(Provider, {
-      experimentalStore: config.baileys.experimentalStore,
-      timeRelease: config.baileys.timeRelease,
-      usePairingCode: config.whatsapp.usePairingCode,
-      phoneNumber: config.whatsapp.phoneNumber,
+      experimentalStore: config.builderbot.experimentalStore,
+      timeRelease: config.builderbot.timeRelease,
+      usePairingCode: config.builderbot.usePairingCode,
+      phoneNumber: config.builderbot.phoneNumber,
     });
 
     const adapterDB = new Database();
@@ -105,11 +102,9 @@ const main = async () => {
     // Inicializar servicios
     const driverService = new DriverService();
     const requestService = new RequestService();
-    const performanceMonitor = new PerformanceMonitor();
-    const resourceMonitor = new ResourceMonitor();
-    const notificationService = new NotificationService(adapterProvider, performanceMonitor);
+    const notificationService = new NotificationService(adapterProvider);
     const geocodingService = new GeocodingService(config.googleMaps.apiKey);
-    console.log("✅ Servicios inicializados para VPS (2 CPUs, 8GB RAM)");
+    console.log("✅ Servicios inicializados");
 
     // Configurar servicios en flujos
     setTaxiFlowServices(requestService, notificationService, driverService, geocodingService);
@@ -162,11 +157,6 @@ const main = async () => {
       flow: adapterFlow,
       provider: adapterProvider,
       database: adapterDB,
-    }, {
-      queue: {
-        timeout: 45000,       // 45 segundos - más tiempo para operaciones complejas
-        concurrencyLimit: 5   // Reducido para VPS con 2 CPUs
-      }
     });
 
     console.log("✅ Bot creado exitosamente");

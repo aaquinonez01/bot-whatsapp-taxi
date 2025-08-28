@@ -20,10 +20,22 @@ services:
       DATABASE_URL: postgresql://taxi_user:taxi_chat_bot@db_taxi:5432/taxi_db
       NODE_ENV: production
       PORT: 3008
+      # Configuración BuilderBot según documentación oficial
+      EXPERIMENTAL_STORE: "true"
+      TIME_RELEASE: "10800000"
+      USE_PAIRING_CODE: "true"
     volumes:
       - ./bot_sessions:/app/bot_sessions
+      - ./logs:/app/logs
     ports:
       - "3008:3008"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
 
 volumes:
   postgres_data:
