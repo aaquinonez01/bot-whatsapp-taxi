@@ -24,6 +24,9 @@ services:
       EXPERIMENTAL_STORE: "true"
       TIME_RELEASE: "10800000"
       USE_PAIRING_CODE: "true"
+      # Queue configuration según docs BuilderBot
+      QUEUE_TIMEOUT: "20000"
+      QUEUE_CONCURRENCY_LIMIT: "15"
     volumes:
       - ./bot_sessions:/app/bot_sessions
       - ./logs:/app/logs

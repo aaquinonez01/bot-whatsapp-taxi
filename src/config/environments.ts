@@ -19,10 +19,15 @@ export const config = {
   },
   builderbot: {
     // Configuración según documentación oficial de BuilderBot
-    experimentalStore: process.env.EXPERIMENTAL_STORE !== "false", // true por defecto (recomendado)
+    experimentalStore: process.env.EXPERIMENTAL_STORE === "true", // Debe ser explícitamente true
     timeRelease: parseInt(process.env.TIME_RELEASE || "10800000"), // 3 horas (recomendación oficial)
     usePairingCode: process.env.USE_PAIRING_CODE === "true",
     phoneNumber: process.env.WHATSAPP_PHONE || "",
+  },
+  queue: {
+    // Configuración de queue según documentación oficial de BuilderBot
+    timeout: parseInt(process.env.QUEUE_TIMEOUT || "20000"), // 20 segundos timeout
+    concurrencyLimit: parseInt(process.env.QUEUE_CONCURRENCY_LIMIT || "15"), // 15 procesos concurrentes
   },
   performance: {
     enableParallelNotifications: process.env.ENABLE_PARALLEL_NOTIFICATIONS !== "false",

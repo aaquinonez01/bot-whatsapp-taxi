@@ -51,32 +51,13 @@ import {
   setDriverFlowServices,
 } from "./flows/driver.flow.js";
 
-// Manejo global de errores de promesas no capturadas
+// Manejo global de errores simplificado (compatible con BuilderBot)
 process.on('unhandledRejection', (reason, promise) => {
   console.warn('⚠️ Unhandled Promise Rejection:', reason);
-  
-  // Si es un error de "Queue cleared", no es crítico
-  if (reason === "Queue cleared" || (typeof reason === 'string' && reason.includes('Queue cleared'))) {
-    console.log('ℹ️ Queue cleared - reiniciando cola de mensajes...');
-    return; // No hacer crash del proceso
-  }
-  
-  // Para otros errores críticos, log pero no crashear
-  console.error('🚨 Critical Promise Rejection:', reason);
 });
 
-// Manejo global de excepciones no capturadas
 process.on('uncaughtException', (error) => {
   console.error('🚨 Uncaught Exception:', error);
-  
-  // Para errores de WhatsApp/Baileys, intentar continuar
-  if (error.message && (error.message.includes('Bad MAC') || error.message.includes('Queue cleared'))) {
-    console.log('ℹ️ WhatsApp error detected - continuando operación...');
-    return;
-  }
-  
-  // Para errores realmente críticos, terminar
-  console.error('💀 Fatal error - terminando aplicación');
   process.exit(1);
 });
 
@@ -157,6 +138,11 @@ const main = async () => {
       flow: adapterFlow,
       provider: adapterProvider,
       database: adapterDB,
+    }, {
+      queue: {
+        timeout: config.queue.timeout,
+        concurrencyLimit: config.queue.concurrencyLimit
+      }
     });
 
     console.log("✅ Bot creado exitosamente");
