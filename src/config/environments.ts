@@ -4,7 +4,7 @@ export const config = {
   database: {
     url:
       process.env.DATABASE_URL ||
-      "postgresql://username:password@localhost:5432/taxi_cooperativa",
+      "postgresql://taxi_user:taxi_chat_bot@db_taxi:5432/taxi_db",
   },
   server: {
     port: parseInt(process.env.PORT || "3008"),
@@ -30,7 +30,8 @@ export const config = {
     concurrencyLimit: parseInt(process.env.QUEUE_CONCURRENCY_LIMIT || "15"), // 15 procesos concurrentes
   },
   performance: {
-    enableParallelNotifications: process.env.ENABLE_PARALLEL_NOTIFICATIONS !== "false",
+    enableParallelNotifications:
+      process.env.ENABLE_PARALLEL_NOTIFICATIONS !== "false",
     batchSize: parseInt(process.env.NOTIFICATION_BATCH_SIZE || "8"), // 8 conductores con 2 CPUs
     batchDelay: parseInt(process.env.BATCH_DELAY || "1200"), // 1.2 segundos más rápido
     maxParallelBatches: parseInt(process.env.MAX_PARALLEL_BATCHES || "2"), // 2 lotes simultáneos
